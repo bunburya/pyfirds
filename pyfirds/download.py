@@ -13,9 +13,11 @@ BASE_URL = "https://registers.esma.europa.eu/solr/esma_registers_firds_files/"
 
 logger = logging.getLogger(__name__)
 
+
 class BadChecksumError(Exception):
     """An error raised when a downloaded file does not have the expected checksum."""
     pass
+
 
 @dataclass
 class FirdsDoc:
@@ -104,13 +106,9 @@ class FirdsDoc:
         return os.path.join(to_dir, xml_fname)
 
 
-
-
-
-
 class FirdsSearch:
 
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str = BASE_URL):
         self.base_url = base_url
         self.solr = Solr(base_url)
 
