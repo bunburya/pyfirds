@@ -98,9 +98,11 @@ class FirdsDoc:
             xml_fpath = os.path.join(to_dir, xml_fname)
             if os.path.exists(xml_fpath) and not overwrite:
                 raise FileExistsError(xml_fpath)
+            logger.debug(f'Extracting {zip_fpath} to {xml_fpath}.')
             zip_file.extractall(to_dir)
 
         if delete_zip:
+            logger.debug(f'Deleting {zip_fpath}.')
             os.remove(zip_fpath)
 
         return os.path.join(to_dir, xml_fname)

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-from typing import Optional, Union
+from datetime import datetime, timedelta, date
+from typing import Optional, Union, Any
 
 from pyfirds.categories import DebtSeniority, OptionType, OptionExerciseStyle, DeliveryType, BaseProduct, SubProduct, \
     FurtherSubProduct, IndexTermUnit, TransactionType, FinalPriceType, FxType
@@ -102,8 +102,8 @@ class PublicationPeriod:
     :param to_date: The date to which details on the financial instrument were published.
     """
 
-    from_date: datetime
-    to_date: Optional[datetime]
+    from_date: date
+    to_date: Optional[date]
 
 
 @dataclass
@@ -158,7 +158,6 @@ class ReferenceData:
     relevant_competent_authority: str
     publication_period: PublicationPeriod
     never_published: bool
-
 
 
 @dataclass
