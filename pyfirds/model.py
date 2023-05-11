@@ -105,29 +105,11 @@ class PublicationPeriod:
     from_date: date
     to_date: Optional[date]
 
-
 @dataclass
-class ReferenceData:
-    """A base class for financial instrument reference data.
+class TechnicalAttributes:
+    """The technical attributes of a financial instrument (ie, attributes relating to the submission of details of the
+    financial instrument to FIRDS).
 
-    :param isin: The International Securities Indentifier Number (ISO 6166) of the financial instrument.
-    :param full_name: The full name of the financial instrument. This should give a good indication of the issuer and
-        the particulars of the instrument.
-    :param cfi: The Classification of Financial Instruments code (ISO 10962) of the financial instrument.
-    :param is_commodities_derivative: Whether the financial instrument falls within the definition of a "commodities
-        derivative" under Article 2(1)(30) of Regulation (EU) No 600/2014.
-    :param issuer_lei: The Legal Entity identifier (ISO 17442) for the issuer. In certain cases, eg derivative
-        instruments issued by the trading venue, this field will be populated with the trading venue operator's LEI.
-    :param fisn: The Financial Instrument Short Name (ISO 18774) for the financial instrument.
-    :param trading_venue_attrs: Data relating to the trading or admission to trading of the financial instrument on a
-        trading venue.
-    :param notional_currency: The currency in which the notional is denominated. For an interest rate or currency
-        derivative contract, this will be the notional currency of leg 1, or the currency 1, of the pair. In the case
-        of swaptions where the underlying swap is single currency, this will be the notional currency of the underlying
-        swap. For swaptions where the underlying is multi-currency, this will be the notional currency of leg 1 of the
-        swap.
-    :param technical_record_id: A unique identifier used by the FIRDS error management routine to identify any error
-        related to it. The reporting date followed by a sequence number (YYYYMMDDnxxxxxxx) could be used.
     :param is_inconsistent: Whether the record has been flagged by FIRDS as inconsistent.
     :param last_update: The date and time when this financial instrument was last received by FIRDS.
     :param submission_date_time: The date and time when this instrument was originally received by at the submission
@@ -140,18 +122,6 @@ class ReferenceData:
     :param never_published: Whether the instrument was only reported after their termination date and never published
         on the reference data files.
     """
-
-    isin: str  # TODO: ISIN class?
-    full_name: str
-    cfi: str  # TODO: CFI class? https://en.wikipedia.org/wiki/ISO_10962
-    is_commodities_derivative: bool
-    issuer_lei: str  # TODO: LEI class?
-    fisn: str  # TODO: FISN class? https://www.iso.org/obp/ui/#iso:std:iso:18774:ed-1:v1:en
-    trading_venue_attrs: TradingVenueRelatedAttributes
-    notional_currency: str  # TODO: currency code class? https://en.wikipedia.org/wiki/ISO_4217
-
-    # Technical attributes
-    technical_record_id: str
     is_inconsistent: bool
     last_update: datetime
     submission_date_time: Optional[datetime]
@@ -159,9 +129,12 @@ class ReferenceData:
     publication_period: PublicationPeriod
     never_published: bool
 
+# TODO: Rather than inheritance, have DebtInstrumentAttributes, DerivativeInstrumentAttributes etc as optional
+#  properties of ReferenceData. That way each one can be parsed from the relevant sub-element of RefData, and we can
+#  tell what type of instrument is being referred to by checking for the presence of the relevant attributes.
 
 @dataclass
-class DebtInstrument(ReferenceData):
+class DebtAttributes:
     """Reference data for bonds or other forms of securitised debt.
 
     :param total_issued_amount: The total issued nominal amount of the financial instrument. Amount is expressed in the
@@ -182,7 +155,50 @@ class DebtInstrument(ReferenceData):
     seniority: DebtSeniority
 
 @dataclass
-class DerivativeInstrument(ReferenceData):
+class CommodityDerivativeAttributes:
+    """Additional reference data for a commodity derivative instrument.
+
+    :param base_product: The base product for the underlying asset class.
+    :param sub_product: The sub-product for the underlying asset class.
+    :param further_sub_product: The further sub-product (ie, sub-sub-product) for the underlying asset class.
+    :param transaction_type: The transaction type as specified by the trading venue.
+    :param final_price_type: The final price type as specified by the trading venue.
+    """
+    base_product: BaseProduct
+    sub_product: SubProduct
+    further_sub_product: FurtherSubProduct
+    transaction_type: TransactionType
+    final_price_type: FinalPriceType
+
+@dataclass
+class InterestRateDerivativeAttributes:
+    """Additional reference data for an interest rate derivative instrument.
+
+    :param reference_rate: The reference rate.
+    :param notional_currency_2: In the case of multi-currency or cross-currency swaps the currency in which leg 2 of the
+        contract is denominated. For swaptions where the underlying swap is multi-currency, the currency in which leg 2
+        of the swap is denominated.
+    :param fixed_rate_1: The fixed rate of leg 1 of the trade, if applicable. Expressed as a percentage.
+    :param fixed_rate_2: The fixed rate of leg 2 of the trade, if applicable. Expressed as a percentage.
+    :param floating_rate_2: The floating rate of leg 2 of the trade, if applicable.
+    """
+    reference_rate: Index
+    notional_currency_2: Optional[str]
+    fixed_rate_1: Optional[float]
+    fixed_rate_2: Optional[float]
+    floating_rate_2: Optional[Index]
+
+@dataclass
+class FxDerivativeAttributes:
+    """Additional reference data for a foreign exchange derivative instrument.
+
+    :param notional_currency_2: The second currency of the currency pair.
+    :param fx_type: The type of underlying currency.
+    """
+    notional_currency_2: str
+    fx_type: FxType
+@dataclass
+class DerivativeAttributes:
     """Reference data for a derivative instrument.
 
     :param expiry_date: Expiry date of the instrument.
@@ -219,48 +235,42 @@ class DerivativeInstrument(ReferenceData):
     option_exercise_style: OptionExerciseStyle
     delivery_type: DeliveryType
 
-# NOTE: Can use "AsstClssSpcfcAttrbts" child element to determine appropriate sub-class.
 
 @dataclass
-class CommodityDerivativeInstrument(DerivativeInstrument):
-    """Reference data for a commodity derivative instrument.
+class ReferenceData:
+    """A base class for financial instrument reference data.
 
-    :param base_product: The base product for the underlying asset class.
-    :param sub_product: The sub-product for the underlying asset class.
-    :param further_sub_product: The further sub-product (ie, sub-sub-product) for the underlying asset class.
-    :param transaction_type: The transaction type as specified by the trading venue.
-    :param final_price_type: The final price type as specified by the trading venue.
+    :param isin: The International Securities Indentifier Number (ISO 6166) of the financial instrument.
+    :param full_name: The full name of the financial instrument. This should give a good indication of the issuer and
+        the particulars of the instrument.
+    :param cfi: The Classification of Financial Instruments code (ISO 10962) of the financial instrument.
+    :param is_commodities_derivative: Whether the financial instrument falls within the definition of a "commodities
+        derivative" under Article 2(1)(30) of Regulation (EU) No 600/2014.
+    :param issuer_lei: The Legal Entity identifier (ISO 17442) for the issuer. In certain cases, eg derivative
+        instruments issued by the trading venue, this field will be populated with the trading venue operator's LEI.
+    :param fisn: The Financial Instrument Short Name (ISO 18774) for the financial instrument.
+    :param trading_venue_attrs: Data relating to the trading or admission to trading of the financial instrument on a
+        trading venue.
+    :param notional_currency: The currency in which the notional is denominated. For an interest rate or currency
+        derivative contract, this will be the notional currency of leg 1, or the currency 1, of the pair. In the case
+        of swaptions where the underlying swap is single currency, this will be the notional currency of the underlying
+        swap. For swaptions where the underlying is multi-currency, this will be the notional currency of leg 1 of the
+        swap.
+    :param technical_record_id: A unique identifier used by the FIRDS error management routine to identify any error
+        related to it. The reporting date followed by a sequence number (YYYYMMDDnxxxxxxx) could be used.
+    :param technical_attributes: Technical attributes of the financial instrument.
+
     """
-    base_product: BaseProduct
-    sub_product: SubProduct
-    further_sub_product: FurtherSubProduct
-    transaction_type: TransactionType
-    final_price_type: FinalPriceType
 
-@dataclass
-class InterestRateDerivativeInstrument(DerivativeInstrument):
-    """Reference data for an interest rate derivative instrument.
+    isin: str  # TODO: ISIN class?
+    full_name: str
+    cfi: str  # TODO: CFI class? https://en.wikipedia.org/wiki/ISO_10962
+    is_commodities_derivative: bool
+    issuer_lei: str  # TODO: LEI class?
+    fisn: str  # TODO: FISN class? https://www.iso.org/obp/ui/#iso:std:iso:18774:ed-1:v1:en
+    trading_venue_attrs: TradingVenueRelatedAttributes
+    notional_currency: str  # TODO: currency code class? https://en.wikipedia.org/wiki/ISO_4217
+    technical_record_id: str
+    technical_attributes: TechnicalAttributes
 
-    :param reference_rate: The reference rate.
-    :param notional_currency_2: In the case of multi-currency or cross-currency swaps the currency in which leg 2 of the
-        contract is denominated. For swaptions where the underlying swap is multi-currency, the currency in which leg 2
-        of the swap is denominated.
-    :param fixed_rate_1: The fixed rate of leg 1 of the trade, if applicable. Expressed as a percentage.
-    :param fixed_rate_2: The fixed rate of leg 2 of the trade, if applicable. Expressed as a percentage.
-    :param floating_rate_2: The floating rate of leg 2 of the trade, if applicable.
-    """
-    reference_rate: Index
-    notional_currency_2: Optional[str]
-    fixed_rate_1: Optional[float]
-    fixed_rate_2: Optional[float]
-    floating_rate_2: Optional[Index]
 
-@dataclass
-class FxDerivativeInstrument(DerivativeInstrument):
-    """Reference data for a foreign exchange derivative instrument.
-
-    :param notional_currency_2: The second currency of the currency pair.
-    :param fx_type: The type of underlying currency.
-    """
-    notional_currency_2: str
-    fx_type: FxType
