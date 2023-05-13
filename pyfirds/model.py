@@ -55,7 +55,7 @@ class Index:
     term: Optional[IndexTerm]
 
 @dataclass
-class TradingVenueRelatedAttributes:
+class TradingVenueAttributes:
     """Data relating to the trading or admission to trading of a financial instrument on a trading venue.
 
     :param trading_venue: The Market Identifier Code (ISO 20022) for the trading venue or systemic internaliser. A
@@ -197,6 +197,7 @@ class FxDerivativeAttributes:
     """
     notional_currency_2: str
     fx_type: FxType
+
 @dataclass
 class DerivativeAttributes:
     """Reference data for a derivative instrument.
@@ -223,6 +224,9 @@ class DerivativeAttributes:
         (American style).
     :param delivery_type: Whether the financial instrument is cash settled or physically settled or delivery type cannot
         be determined at time of execution.
+    :param commodity_attributes: If the instrument is a commodity derivative, certain commodity-related attributes.
+    :param ir_attributes: If the instrument is an interest rate derivative, certain IR-related attributes.
+    :param fx_attributes: If the instrument is a foreign exchange derivative, certain FX-related attributes.
     """
 
     expiry_date: Optional[datetime]
@@ -234,6 +238,9 @@ class DerivativeAttributes:
     strike_price: Optional[StrikePrice]
     option_exercise_style: OptionExerciseStyle
     delivery_type: DeliveryType
+    commodity_attributes: Optional[CommodityDerivativeAttributes]
+    ir_attributes: Optional[InterestRateDerivativeAttributes]
+    fx_attributes: Optional[FxDerivativeAttributes]
 
 
 @dataclass
@@ -259,6 +266,8 @@ class ReferenceData:
     :param technical_record_id: A unique identifier used by the FIRDS error management routine to identify any error
         related to it. The reporting date followed by a sequence number (YYYYMMDDnxxxxxxx) could be used.
     :param technical_attributes: Technical attributes of the financial instrument.
+    :param debt_attributes: If the instrument is a debt instrument, certain debt-related attributes.
+    :param derivative_attributes: If the instrument is a derivative, certain derivative-related attributes.
 
     """
 
@@ -268,9 +277,11 @@ class ReferenceData:
     is_commodities_derivative: bool
     issuer_lei: str  # TODO: LEI class?
     fisn: str  # TODO: FISN class? https://www.iso.org/obp/ui/#iso:std:iso:18774:ed-1:v1:en
-    trading_venue_attrs: TradingVenueRelatedAttributes
+    trading_venue_attrs: TradingVenueAttributes
     notional_currency: str  # TODO: currency code class? https://en.wikipedia.org/wiki/ISO_4217
     technical_record_id: str
     technical_attributes: TechnicalAttributes
+    debt_attributes: DebtAttributes
+    derivative_attributes: Optional[DerivativeAttributes]
 
 

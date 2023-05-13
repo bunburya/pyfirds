@@ -1,4 +1,5 @@
 """Some data types that are used as building blocks in the main ReferenceData classes."""
+
 from enum import Enum, StrEnum
 
 
@@ -7,6 +8,7 @@ class IndexTermUnit(Enum):
     WEEK = "week"
     MNTH = "month"
     YEAR = "year"
+
 
 class IndexName(StrEnum):
     EONA = "EONIA"
@@ -32,8 +34,9 @@ class IndexName(StrEnum):
     TLBO = "TELBOR"
     WIBO = "WIBOR"
     TREA = "Treasury"
-    SWAP  ="SWAP"
+    SWAP = "SWAP"
     FUSW = "Future SWAP"
+
 
 class DebtSeniority(Enum):
     SNDB = "senior"
@@ -55,10 +58,12 @@ class OptionExerciseStyle(Enum):
     BERM = "Bermudan"
     OTHR = "Other"
 
+
 class DeliveryType(Enum):
     PHYS = "physical"
     CASH = "cash"
     OPTL = "optional"  # "optional" is kind of a guess as to what word is being abbreviated
+
 
 # Classification of commodity and emission allowances derivatives
 # https://ec.europa.eu/finance/securities/docs/isd/mifid/rts/160714-rts-23-annex_en.pdf
@@ -80,6 +85,7 @@ class BaseProduct(Enum):
            "regulatory technical standards on transparency requirements for trading venues and investment firms in " \
            "respect of bonds, structured finance products, emission allowances and derivatives)"
     OTHR = "Other"
+
 
 class SubProduct(Enum):
     # AGRI
@@ -134,6 +140,7 @@ class SubProduct(Enum):
     NSPT = "Newsprint"
     PULP = "Pulp"
     PLST = "Plastic"
+
 
 class FurtherSubProduct(Enum):
     # GROS
@@ -241,6 +248,7 @@ class TransactionType(Enum):
     DIFF = "Differential"
     OTHR = "Other"
 
+
 class FinalPriceType(Enum):
     ARGM = "Argus/McCloskey"
     BLTC = "Baltic"
@@ -249,6 +257,7 @@ class FinalPriceType(Enum):
     IHSM = "HIS McCloskey"
     PLAT = "Platts"
     OTHR = "Other"
+
 
 class FxType(Enum):
     FXCR = "FX Cross Rates"

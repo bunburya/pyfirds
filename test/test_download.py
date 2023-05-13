@@ -22,7 +22,7 @@ def test_01_search():
         checks = search_params_to_checksums[(from_time, to_time, q)]
         assert len(results) == len(checks)
         for r, c in zip(results, checks):
-            assert r.checksum == c
+            assert r.check_digits == c
             if q != '*':
                 assert r.file_type == q
 
