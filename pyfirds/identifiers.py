@@ -1,6 +1,7 @@
 """Classes representing certain types of identifier used in the FIRDS data."""
 from dataclasses import dataclass
 
+# TODO: Test
 
 class BadIdentifierException(Exception): pass
 

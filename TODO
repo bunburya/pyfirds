@@ -1,0 +1,26 @@
+# TODO
+
+- Finish parsing XML into dataclasses
+  - Add testing
+- Add support for downloading from FCA
+  - Add testing for downloading from FCA
+  - Add testing for parsing FCA data into dataclasses
+- Add database support with SqlAlchemy
+  - Add testing
+- Consider adding dataclasses for:
+  - CFI
+  - ISIN
+  - LEI
+  - FISN
+  - MIC
+
+
+## XML parsing tests
+
+- Try parse everything without error
+- Ensure resulting dataclasses have correct property types
+- Confirm understanding about structure of data:
+  - Debt instrument always have interest rates, maturity date, total issue amount, minimum denomination
+  - Floating interest rates:
+    - Always have "Term" and "RefRate"
+    - "RefRate" always has one of ISIN, Indx or Nm

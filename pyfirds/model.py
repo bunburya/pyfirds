@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, date
 from typing import Optional, Union, Any
 
 from pyfirds.categories import DebtSeniority, OptionType, OptionExerciseStyle, DeliveryType, BaseProduct, SubProduct, \
-    FurtherSubProduct, IndexTermUnit, TransactionType, FinalPriceType, FxType
+    FurtherSubProduct, IndexTermUnit, TransactionType, FinalPriceType, FxType, IndexName
 
 
 @dataclass
@@ -50,7 +50,7 @@ class Index:
 
 
     """
-    name: Optional[str]
+    name: Optional[Union[str, IndexName]]
     isin: Optional[str]
     term: Optional[IndexTerm]
 
@@ -92,7 +92,21 @@ class InterestRate:
 
     fixed_rate: Optional[float]
     benchmark: Optional[Index]
-    spread: int
+    spread: Optional[int]
+
+    def validate(self):
+        """Check that either a fixed rate or a floating rate is defined."""
+        assert (self.fixed_rate is not None) or ((self.benchmark is not None) and self.spread is not None)
+
+    @property
+    def is_fixed(self) -> bool:
+        """Whether this interest rate is a fixed interest rate."""
+        return self.fixed_rate is not None
+
+    @property
+    def is_floating(self) -> bool:
+        """Whether this interest rate is a floating interest rate."""
+        return self.benchmark is not None
 
 @dataclass
 class PublicationPeriod:
@@ -165,8 +179,8 @@ class CommodityDerivativeAttributes:
     :param final_price_type: The final price type as specified by the trading venue.
     """
     base_product: BaseProduct
-    sub_product: SubProduct
-    further_sub_product: FurtherSubProduct
+    sub_product: Optional[SubProduct]
+    further_sub_product: Optional[FurtherSubProduct]
     transaction_type: TransactionType
     final_price_type: FinalPriceType
 
