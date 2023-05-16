@@ -143,9 +143,6 @@ class TechnicalAttributes:
     publication_period: PublicationPeriod
     never_published: bool
 
-# TODO: Rather than inheritance, have DebtInstrumentAttributes, DerivativeInstrumentAttributes etc as optional
-#  properties of ReferenceData. That way each one can be parsed from the relevant sub-element of RefData, and we can
-#  tell what type of instrument is being referred to by checking for the presence of the relevant attributes.
 
 @dataclass
 class DebtAttributes:
