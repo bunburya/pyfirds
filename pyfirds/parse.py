@@ -6,10 +6,10 @@ from dateutil import parser
 from lxml import etree
 
 from pyfirds.categories import DebtSeniority, IndexTermUnit, IndexName, BaseProduct, SubProduct, FurtherSubProduct, \
-    TransactionType, FinalPriceType
+    TransactionType, FinalPriceType, FxType, OptionType, DeliveryType, OptionExerciseStyle
 from pyfirds.model import ReferenceData, TradingVenueAttributes, TechnicalAttributes, DebtAttributes, \
     DerivativeAttributes, PublicationPeriod, InterestRate, IndexTerm, Index, CommodityDerivativeAttributes, \
-    InterestRateDerivativeAttributes
+    InterestRateDerivativeAttributes, FxDerivativeAttributes, UnderlyingSingle, UnderlyingBasket, StrikePrice
 
 NSMAP = {
     "biz_data": "urn:iso:std:iso:20022:tech:xsd:head.003.001.01",
@@ -152,9 +152,11 @@ def parse_index_term(elem: Optional[etree.Element], optional: bool = False) -> O
 
 
 def parse_index(elem: Optional[etree.Element], optional: bool = False) -> Optional[Index]:
-    """Parse an `IntrstRate/Fltg` XML element from FIRDS data into a :class:`Index` object.
+    """Parse an `IntrstRate/Fltg` or `DerivInstrmAttrbts/UndrlygInstrm/Sngl/Indx/Nm/RefRate/Nm` XML element from FIRDS
+    data into a :class:`Index` object.
 
-    :param elem: The XML element to parse. The tag should be `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}Fltg`.
+    :param elem: The XML element to parse. The element should be of type `FloatingInterestRate8` as defined in the
+        FULINS XSD.
     :param optional: If True and `elem` is None, return None. Useful where the data is optional in FIRDS.
     """
     if elem is None:
@@ -163,7 +165,7 @@ def parse_index(elem: Optional[etree.Element], optional: bool = False) -> Option
         else:
             raise ValueError(f"Received NoneType when parsing non-optional element.")
     ref_rate_elem = elem.find("document:RefRate", NSMAP)
-    index_text = _text_or_none(ref_rate_elem.find("document:Index", NSMAP))
+    index_text = _text_or_none(ref_rate_elem.find("document:Indx", NSMAP))
     if index_text is not None:
         # Try to get the appropriate IndexName enum, otherwise just treat the value as a string
         try:
@@ -263,8 +265,130 @@ def parse_ir_attrs(elem: Optional[etree.Element], optional: bool = False) -> Opt
     )
 
 
-def parse_derivative_attrs(elem: etree.Element) -> DerivativeAttributes:
-    pass
+def parse_fx_attrs(elem: Optional[etree.Element], optional: bool = False) -> Optional[FxDerivativeAttributes]:
+    """Parse a `DerivInstrmAttrbts/AsstClssSpcfcAttrbts/FX` XML element from FIRDS into a
+    :class:`FxDerivativeAttributes` object.
+
+    :param elem: The XML element to parse. The tag should be `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}FX`.
+    :param optional: If True and `elem` is None, return None. Useful where the data is optional in FIRDS.
+    """
+    if elem is None:
+        if optional:
+            return None
+        else:
+            raise ValueError(f"Received NoneType when parsing non-optional element.")
+    return FxDerivativeAttributes(
+        notional_currency_2=elem.find("document:OtherNtnlCcy", NSMAP).text,
+        fx_type=FxType[elem.find("document:FxTp", NSMAP).text]
+    )
+
+
+def parse_derivative_underlying(
+        elem: Optional[etree.Element],
+        optional: bool = False
+) -> Optional[Union[UnderlyingSingle, UnderlyingBasket]]:
+    """Parse a `DerivInstrmAttrbts/UndrlygInstrm` XML element from FIRDS into a :class:`UnderlyingSingle` or
+    :class:`UnderlyingBasket` object as appropriate.
+
+    :param elem: The XML element to parse. The tag should be
+        `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}UndrlygInstrm`.
+    :param optional: If True and `elem` is None, return None. Useful where the data is optional in FIRDS.
+    """
+    if elem is None:
+        if optional:
+            return None
+        else:
+            raise ValueError(f"Received NoneType when parsing non-optional element.")
+
+    if (single_underlying := elem.find("document:Sngl", NSMAP)) is not None:
+        # An index can be represented by an ISIN or by a name and optional term. Just like our Index dataclass.
+        # Annoyingly, unlike with `Fltg` elements where all three elements are combined in a single `RefRate` element,
+        # here the ISIN, if present, is directly under `Indx` whereas the name and term are under `Index/Nm/RefRate`.
+        index_xml = single_underlying.find("document:Indx", NSMAP)
+        if index_xml is None:
+            index = None
+        else:
+            index_isin = _text_or_none(index_xml.find("document:ISIN", NSMAP))
+            index_ref_rate = index_xml.find("document:Nm/document:RefRate", NSMAP)
+            index = parse_index(index_ref_rate)
+            if index is None:
+                index = Index(isin=index_isin, name=None, term=None)
+            else:
+                index.isin = index_isin
+
+        return UnderlyingSingle(
+            isin=_text_or_none(single_underlying.find("document:ISIN")),
+            index=index,
+            issuer_lei=_text_or_none(single_underlying.find("document:LEI", NSMAP))
+        )
+    elif (basket_underlying := elem.find("document:Bskt", NSMAP)) is not None:
+        return UnderlyingBasket(
+            isin=[i.text for i in basket_underlying.findall("document:ISIN", NSMAP)],
+            issuer_lei=[i.text for i in basket_underlying.findall("document:LEI", NSMAP)]
+        )
+    else:
+        raise ValueError("Could not find `Sngl` or `Bskt` element in `UndrlygInstrm` element.")
+
+
+def parse_strike_price(elem: Optional[etree.Element], optional: bool = False) -> Optional[StrikePrice]:
+    """Parse a `DerivInstrmAttrbts/StrkPric` XML element from FIRDS into a :class:`StrikePrice` object.
+
+    :param elem: The XML element to parse. The tag should be `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}StrkPric`.
+    :param optional: If True and `elem` is None, return None. Useful where the data is optional in FIRDS.
+    """
+    if elem is None:
+        if optional:
+            return None
+        else:
+            raise ValueError(f"Received NoneType when parsing non-optional element.")
+    price_xml = elem.find("document:Pric", NSMAP)
+    return StrikePrice(
+        monetary_value=_text_or_none(price_xml.find("document:MntryVal/document:Amt", NSMAP), wrapper=float),
+        percentage=_text_or_none(price_xml.find("document:Pctg", NSMAP), wrapper=float),
+        yield_=_text_or_none(price_xml.find("document:Yld", NSMAP), wrapper=float),
+        basis_points=_text_or_none(price_xml.find("document:BsisPts", NSMAP), wrapper=float),
+        pending=_text_or_none(price_xml.find("document:NoPric/document:Pdg", NSMAP)) == "PDNG",
+        currency=(
+                _text_or_none(price_xml.find("document:MntryVal/document:@Ccy")) or
+                _text_or_none(price_xml.find("document:NoPric/document:Ccy"))
+        )
+    )
+
+
+def parse_derivative_attrs(elem: Optional[etree.Element], optional: bool = False) -> Optional[DerivativeAttributes]:
+    """Parse a `DerivInstrmAttrbts` XML element from FIRDS into a :class:`DerivativeAttributes` object.
+
+    :param elem: The XML element to parse. The tag should be
+        `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}DerivInstrmAttrbts`.
+    :param optional: If True and `elem` is None, return None. Useful where the data is optional in FIRDS.
+    """
+    if elem is None:
+        if optional:
+            return None
+        else:
+            raise ValueError(f"Received NoneType when parsing non-optional element.")
+
+    return DerivativeAttributes(
+        expiry_date=parse_datetime(elem.find("document:XpryDt", NSMAP)),
+        price_multiplier=float(elem.find("document:PricMltplr", NSMAP).text),
+        underlying=parse_derivative_underlying(elem.find("document:UndrlygInstrm", NSMAP)),
+        option_type=_text_or_none(elem.find("document:OptnTp", NSMAP), wrapper=OptionType),
+        strike_price=parse_strike_price(elem.find("document:StrkPric", NSMAP), optional=True),
+        option_exercise_style=_text_or_none(elem.find("document:OptnExrcStyle", NSMAP), wrapper=OptionExerciseStyle),
+        delivery_type=_text_or_none(elem.find("document:DlvryTp", NSMAP), wrapper=DeliveryType),
+        commodity_attributes=parse_commodity_deriv_attrs(
+            elem.find("document:AsstClssSpcfcAttrbts/document:Cmmdty", NSMAP),
+            optional=True
+        ),
+        ir_attributes=parse_ir_attrs(
+            elem.find("document:AsstClssSpcfcAttrbts/document:Intrst", NSMAP),
+            optional=True
+        ),
+        fx_attributes=parse_fx_attrs(
+            elem.find("document:AsstClssSpcfcAttrbts/document:Fx", NSMAP),
+            optional=True
+        )
+    )
 
 
 def parse_ref_data(elem: etree.Element) -> ReferenceData:

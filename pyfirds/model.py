@@ -210,22 +210,43 @@ class FxDerivativeAttributes:
     fx_type: FxType
 
 @dataclass
-class DerivativeAttributes:
-    """Reference data for a derivative instrument.
+class UnderlyingSingle:
+    """Reference data for a single asset which underlies a derivative instrument.
 
-    :param expiry_date: Expiry date of the instrument.
-    :param price_multiplier: Number of units of the underlying instrument represented by a single derivative contract.
-        For a future or option on an index, the amount per index point.
-    :param underlying_isins: A list of one or more ISINs of the underlying instruments.
+    :param isin: The ISIN of the underlying financial instrument.
         - For ADRs, GDRs and similar instruments, the ISIN code of the financial instrument on which those instruments
         are based. For convertible bonds, the ISIN code of the instrument in which the bond can be converted.
         - For derivatives or other instruments which have an underlying, the underlying instrument ISIN code, when the
         underlying is admitted to trading, or traded on a trading venue. Where the underlying is a stock dividend, then
         the ISIN code of the related share entitling the underlying dividend shall be provided.
         - For Credit Default Swaps, the ISIN of the reference obligation shall be provided.
-    :param underlying_issuers: Where the instrument is referring to an issuer, rather than to one single instrument, the
-        LEI code of the issuer.
-    :param underlying_index: The underlying index of the instrument.
+    :param index: The ISIN, or an :class:`Index` object, representing the underlying index.
+    :param issuer_lei: The LEI of the underlying issuer.
+    """
+
+    isin: Optional[str]
+    index: Optional[Union[str, Index]]
+    issuer_lei: Optional[str]
+
+@dataclass
+class UnderlyingBasket:
+    """Reference data for a basket of assets which underlie a derivative instrument.
+
+    :param isin: A list of ISINs of the financial instruments in the basket.
+    :param issuer_lei: A list of LEIs of issuers in the basket.
+    """
+
+    isin: Optional[list[str]]
+    issuer_lei: Optional[list[str]]
+
+@dataclass
+class DerivativeAttributes:
+    """Reference data for a derivative instrument.
+
+    :param expiry_date: Expiry date of the instrument.
+    :param price_multiplier: Number of units of the underlying instrument represented by a single derivative contract.
+        For a future or option on an index, the amount per index point.
+    :param underlying: Description of the underlying asset or basket of assets.
     :param option_type: If the derivative instrument is an option, whether it is a call or a put or whether it cannot
         be determined whether it is a call or a put at the time of execution.
     :param strike_price: Predetermined price at which the holder will have to buy or sell the underlying instrument, or
@@ -242,9 +263,7 @@ class DerivativeAttributes:
 
     expiry_date: Optional[datetime]
     price_multiplier: float
-    underlying_isins: Optional[list[str]]
-    underlying_issuers: Optional[list[str]]
-    underlying_index: Optional[Index]
+    underlying: Union[UnderlyingSingle, UnderlyingBasket]
     option_type: Optional[OptionType]
     strike_price: Optional[StrikePrice]
     option_exercise_style: OptionExerciseStyle
