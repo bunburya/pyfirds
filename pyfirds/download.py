@@ -1,7 +1,7 @@
 import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, date
 from hashlib import file_digest
 from zipfile import ZipFile
 
@@ -67,13 +67,13 @@ class FirdsDoc:
         with requests.get(self.download_link, stream=True) as r:
             r.raise_for_status()
             with open(fpath_part, 'wb') as fd:
-                logger.debug(f'Downloading file from {self.download_link} to {fpath}.')
+                logger.info(f'Downloading file from {self.download_link} to {fpath}.')
                 for chunk in r.iter_content(1024 * 8):
                     fd.write(chunk)
         os.rename(fpath_part, fpath)
 
         if verify:
-            logger.debug(f'Verifying checksum of file at {fpath}.')
+            logger.info(f'Verifying checksum of file at {fpath}.')
             with open(fpath, 'rb') as fd:
                 check = file_digest(fd, 'md5').hexdigest()
                 if check != self.checksum:
@@ -108,40 +108,43 @@ class FirdsDoc:
         return os.path.join(to_dir, xml_fname)
 
 
-class FirdsSearch:
+class FirdsSearcher:
 
     def __init__(self, base_url: str = BASE_URL):
         self.base_url = base_url
         self.solr = Solr(base_url)
 
-    def search(self, from_time: datetime, to_time: datetime, query: str = '*') -> list[FirdsDoc]:
+    def search(self, from_date: date, to_date: date, query: str = '*') -> list[FirdsDoc]:
         """Search the FIRDS database and return a list of download URLs.
 
-        :param from_time: The start of the period to search.
-        :param to_time: The end date of the period to search.
+        :param from_date: The start of the period to search. Can be a :class:`datetime` object or a :class:`date`
+            object. In the latter case, the search period will run from the start of that date.
+        :param to_date: The end of the period to search. Can be a :class:`datetime` object or a :class:`date` object.
+            In the latter case, the search period will run to the end of that date.
         :param query: The query to search. Optional, but can be set to 'FULINS', 'DLTINS' or 'FULCAN' to search for full
             FIRDS records, delta files or cancellation files, respectively.
-
         """
 
-        logger.debug(f'Searching FIRDS database for query {query} from {from_time} to {to_time}.')
+        logger.debug(f'Searching FIRDS database for query {query} from {from_date} to {to_date}.')
 
         start = 0
         rows = 100
 
-        from_str = from_time.astimezone(tz.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-        to_str = to_time.astimezone(tz.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        if not isinstance(from_date, datetime):
+            from_date = datetime(from_date.year, from_date.month, from_date.day, 0, 0, 0)
+        if not isinstance(to_date, datetime):
+            to_date = datetime(to_date.year, to_date.month, to_date.day, 23, 59, 59, 999)
+
+        from_str = from_date.astimezone(tz.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        to_str = to_date.astimezone(tz.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         pub_date_fq = f'publication_date:[{from_str} TO {to_str}]'
         results = self.solr.search(query, fq=pub_date_fq, start=start, rows=rows)
-        docs = [FirdsDoc.from_dict(d) for d in results.docs]
         hits = results.hits
+        logger.info(f"Found {hits} results. Query took {results.qtime}ms.")
+        docs = [FirdsDoc.from_dict(d) for d in results.docs]
         while hits > (start + rows):
             start += rows
             results = self.solr.search(query, fq=pub_date_fq, start=start, rows=rows)
+            logger.info(f"Got results {start} to {start + rows} of {hits}. Query took {results.qtime}ms.")
             docs.extend(FirdsDoc.from_dict(d) for d in results.docs)
         return docs
-
-
-@dataclass
-class FirdsDocName:
-    doc_type: str

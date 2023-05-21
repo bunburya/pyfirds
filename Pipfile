@@ -9,6 +9,7 @@ python-dateutil = "*"
 pysolr = "*"
 pytest = "*"
 lxml = "*"
+pytest-xdist = {extras = ["psutil"], version = "*"}
 
 [dev-packages]
 

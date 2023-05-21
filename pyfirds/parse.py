@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Callable, Any, TypeVar, Type, Union
+from typing import Optional, Callable, TypeVar, Type, Union
 
 from dateutil import parser
 from lxml import etree
@@ -92,10 +92,10 @@ def parse_tv_attrs(elem: etree.Element) -> TradingVenueAttributes:
     return TradingVenueAttributes(
         trading_venue=elem.find("document:Id", NSMAP).text,
         requested_admission=parse_bool(elem.find("document:IssrReq", NSMAP)),
-        approval_date=parse_datetime(elem.find("document:AdmssnApprvlDtByIssr", NSMAP)),
-        request_date=parse_datetime(elem.find("document:ReqForAdmssnDt", NSMAP)),
+        approval_date=parse_datetime(elem.find("document:AdmssnApprvlDtByIssr", NSMAP), optional=True),
+        request_date=parse_datetime(elem.find("document:ReqForAdmssnDt", NSMAP), optional=True),
         admission_or_first_trade_date=parse_datetime(elem.find("document:FrstTradDt", NSMAP)),
-        termination_date=parse_datetime(elem.find("document:TermntnDt", NSMAP))
+        termination_date=parse_datetime(elem.find("document:TermntnDt", NSMAP), optional=True)
     )
 
 
@@ -105,7 +105,7 @@ def parse_publication_period(elem: etree.Element) -> PublicationPeriod:
     :param elem: The XML element to parse. The tag should be
         `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}PblctnPrd`.
     """
-    from_to = elem.find("document:FrDt", NSMAP)
+    from_to = elem.find("document:FrDtToDt", NSMAP)
     if from_to is not None:
         return PublicationPeriod(
             from_date=parse_datetime(from_to.find("document:FrDt", NSMAP)),
@@ -125,12 +125,9 @@ def parse_tech_attrs(elem: etree.Element) -> TechnicalAttributes:
         `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}TechAttrbts`.
     """
     return TechnicalAttributes(
-        is_inconsistent=parse_bool(elem.find("document:IncnsstncyInd", NSMAP).text),
-        last_update=parse_datetime(elem.find("document:LstUpdt", NSMAP).text),
-        submission_date_time=parse_datetime(elem.find("document:SubmissnDtTm", NSMAP), optional=True),
         relevant_competent_authority=elem.find("document:RlvntCmptntAuthrty", NSMAP).text,
         publication_period=parse_publication_period(elem.find("document:PblctnPrd", NSMAP)),
-        never_published=parse_bool(elem.find("document:NvrPblshd", NSMAP))
+        relevant_trading_venue=elem.find("document:RlvntTradgVn", NSMAP).text
     )
 
 
@@ -187,10 +184,14 @@ def parse_interest_rate(elem: etree.Element) -> InterestRate:
     :param elem: The XML element to parse. The tag should be
         `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}IntrstRate`."""
     floating_elem = elem.find("document:Fltg", NSMAP)
+    if floating_elem is not None:
+        spread = _text_or_none(floating_elem.find("document:BsisPtSprd", NSMAP), wrapper=int)
+    else:
+        spread = None
     return InterestRate(
         fixed_rate=_text_or_none(elem.find("document:Fxd", NSMAP), float),
         benchmark=parse_index(floating_elem, optional=True),
-        spread=_text_or_none(floating_elem.find("document:BsisPtSprd"), int)
+        spread=spread
     )
 
 
@@ -206,13 +207,14 @@ def parse_debt_attrs(elem: Optional[etree.Element], optional: bool = False) -> O
             return None
         else:
             raise ValueError(f"Received NoneType when parsing non-optional element.")
+    issued_amount_elem = elem.find("document:TtlIssdNmnlAmt", NSMAP)
     return DebtAttributes(
-        total_issued_amount=float(elem.find("document:TtlIssdNmnlAmt", NSMAP).text),
+        total_issued_amount=float(issued_amount_elem.text),
         maturity_date=parse_datetime(elem.find("document:MtrtyDt", NSMAP), optional=True),
-        nominal_currency=elem.find("document:TtlIssdNmnlAmt/document:@Ccy").text,
+        nominal_currency=issued_amount_elem.attrib["Ccy"],
         nominal_value_per_unit=float(elem.find("document:NmnlValPerUnit", NSMAP).text),
         interest_rate=parse_interest_rate(elem.find("document:IntrstRate", NSMAP)),
-        seniority=DebtSeniority[elem.find("document:DebtSnrty", NSMAP).text]
+        seniority=_text_or_none(elem.find("document:DebtSnrty", NSMAP), wrapper=DebtSeniority)
     )
 
 
@@ -232,13 +234,31 @@ def parse_commodity_deriv_attrs(
             return None
         else:
             raise ValueError(f"Received NoneType when parsing non-optional element.")
-    product_elem = elem.find("document:Pdct/*/*", NSMAP)
+
+    # Normal structure is `Pdct/<base product>/<sub product>/BasePdct`, but if the base product does not have an
+    # associated sub product then structure will be `Pdct/<base product>/BasePdct`. So we first check for `BasePdct` two
+    # levels down, if it's not there we check one level down. We also know at that point that there is no sub product
+    # (and therefore no further sub product) associated.
+    product_container_elem = elem.find("document:Pdct", NSMAP)
+    base_prod_elem = product_container_elem.find("*/*/document:BasePdct", NSMAP)
+    if base_prod_elem is None:
+        # No sub product
+        base_product = BaseProduct[product_container_elem.find("*/document:BasePdct", NSMAP).text]
+        sub_product = None
+        further_sub_product = None
+    else:
+        # Sub product
+        base_product = BaseProduct[base_prod_elem.text]
+        product_elem = base_prod_elem.getparent()
+        sub_product = _text_or_none(product_elem.find("document:SubPdct", NSMAP), SubProduct)
+        further_sub_product = _text_or_none(product_elem.find("document:AddtlSubPdct", NSMAP), FurtherSubProduct)
+
     return CommodityDerivativeAttributes(
-        base_product=BaseProduct[product_elem.find("document:BasePdct", NSMAP).text],
-        sub_product=_text_or_none(product_elem.find("document:SubPdct", NSMAP), SubProduct),
-        further_sub_product=_text_or_none(product_elem.find("document:AddtlSubPdct", NSMAP), FurtherSubProduct),
-        transaction_type=TransactionType[elem.find("document:TxTp", NSMAP).text],
-        final_price_type=FinalPriceType[elem.find("document:FnlPricTp", NSMAP).text]
+        base_product=base_product,
+        sub_product=sub_product,
+        further_sub_product=further_sub_product,
+        transaction_type=_text_or_none(elem.find("document:TxTp", NSMAP), wrapper=TransactionType),
+        final_price_type=_text_or_none(elem.find("document:FnlPricTp", NSMAP), wrapper=FinalPriceType)
     )
 
 
@@ -256,12 +276,18 @@ def parse_ir_attrs(elem: Optional[etree.Element], optional: bool = False) -> Opt
         else:
             raise ValueError(f"Received NoneType when parsing non-optional element.")
     other_leg_elem = elem.find("document:OthrLegIntrstRate", NSMAP)
+    if other_leg_elem is not None:
+        fixed_rate_2 = _text_or_none(other_leg_elem.find("document:Fxd", NSMAP), wrapper=float)
+        floating_rate_2 = parse_index(other_leg_elem.find("document:Fltg", NSMAP), optional=True)
+    else:
+        fixed_rate_2 = None
+        floating_rate_2 = None
     return InterestRateDerivativeAttributes(
         reference_rate=parse_index(elem.find("document:IntrstRate", NSMAP)),
         notional_currency_2=_text_or_none(elem.find("document:OtherNtnlCcy", NSMAP)),
         fixed_rate_1=_text_or_none(elem.find("document:FrstLegIntrstRate/document:Fxd", NSMAP), wrapper=float),
-        fixed_rate_2=_text_or_none(other_leg_elem.find("document:Fxd", NSMAP), wrapper=float),
-        floating_rate_2=parse_index(other_leg_elem.find("document:Fltg", NSMAP), optional=True)
+        fixed_rate_2=fixed_rate_2,
+        floating_rate_2=floating_rate_2
     )
 
 
@@ -309,15 +335,15 @@ def parse_derivative_underlying(
             index = None
         else:
             index_isin = _text_or_none(index_xml.find("document:ISIN", NSMAP))
-            index_ref_rate = index_xml.find("document:Nm/document:RefRate", NSMAP)
-            index = parse_index(index_ref_rate)
+            nm = index_xml.find("document:Nm", NSMAP)
+            index = parse_index(nm, optional=True)
             if index is None:
                 index = Index(isin=index_isin, name=None, term=None)
             else:
                 index.isin = index_isin
 
         return UnderlyingSingle(
-            isin=_text_or_none(single_underlying.find("document:ISIN")),
+            isin=_text_or_none(single_underlying.find("document:ISIN", NSMAP)),
             index=index,
             issuer_lei=_text_or_none(single_underlying.find("document:LEI", NSMAP))
         )
@@ -342,16 +368,24 @@ def parse_strike_price(elem: Optional[etree.Element], optional: bool = False) ->
         else:
             raise ValueError(f"Received NoneType when parsing non-optional element.")
     price_xml = elem.find("document:Pric", NSMAP)
-    return StrikePrice(
-        monetary_value=_text_or_none(price_xml.find("document:MntryVal/document:Amt", NSMAP), wrapper=float),
-        percentage=_text_or_none(price_xml.find("document:Pctg", NSMAP), wrapper=float),
-        yield_=_text_or_none(price_xml.find("document:Yld", NSMAP), wrapper=float),
-        basis_points=_text_or_none(price_xml.find("document:BsisPts", NSMAP), wrapper=float),
-        pending=_text_or_none(price_xml.find("document:NoPric/document:Pdg", NSMAP)) == "PDNG",
-        currency=(
-                _text_or_none(price_xml.find("document:MntryVal/document:@Ccy")) or
-                _text_or_none(price_xml.find("document:NoPric/document:Ccy"))
+    if price_xml is not None:
+        return StrikePrice(
+            monetary_value=_text_or_none(price_xml.find("document:MntryVal/document:Amt", NSMAP), wrapper=float),
+            percentage=_text_or_none(price_xml.find("document:Pctg", NSMAP), wrapper=float),
+            yield_=_text_or_none(price_xml.find("document:Yld", NSMAP), wrapper=float),
+            basis_points=_text_or_none(price_xml.find("document:BsisPts", NSMAP), wrapper=float),
+            pending=False,
+            currency=_text_or_none(price_xml.find("document:MntryVal/document:Ccy", NSMAP))
         )
+    else:
+        no_price_xml = elem.find("document:NoPric", NSMAP)
+        return StrikePrice(
+            monetary_value=None,
+            percentage=None,
+            yield_=None,
+            basis_points=None,
+            pending=no_price_xml.find("document:Pdg", NSMAP).text == "PNDG",
+            currency=_text_or_none(no_price_xml.find("document:Ccy", NSMAP))
     )
 
 
@@ -369,9 +403,9 @@ def parse_derivative_attrs(elem: Optional[etree.Element], optional: bool = False
             raise ValueError(f"Received NoneType when parsing non-optional element.")
 
     return DerivativeAttributes(
-        expiry_date=parse_datetime(elem.find("document:XpryDt", NSMAP)),
-        price_multiplier=float(elem.find("document:PricMltplr", NSMAP).text),
-        underlying=parse_derivative_underlying(elem.find("document:UndrlygInstrm", NSMAP)),
+        expiry_date=parse_datetime(elem.find("document:XpryDt", NSMAP), optional=True),
+        price_multiplier=_text_or_none(elem.find("document:PricMltplr", NSMAP), wrapper=float),
+        underlying=parse_derivative_underlying(elem.find("document:UndrlygInstrm", NSMAP), optional=True),
         option_type=_text_or_none(elem.find("document:OptnTp", NSMAP), wrapper=OptionType),
         strike_price=parse_strike_price(elem.find("document:StrkPric", NSMAP), optional=True),
         option_exercise_style=_text_or_none(elem.find("document:OptnExrcStyle", NSMAP), wrapper=OptionExerciseStyle),
@@ -401,13 +435,12 @@ def parse_ref_data(elem: etree.Element) -> ReferenceData:
         isin=gen_attrs.find("document:Id", NSMAP).text,
         full_name=gen_attrs.find("document:FullNm", NSMAP).text,
         cfi=gen_attrs.find("document:ClssfctnTp", NSMAP).text,
-        is_commodities_derivative=parse_bool(gen_attrs.find("document:CmmdtyDerivInd")),
+        is_commodities_derivative=parse_bool(gen_attrs.find("document:CmmdtyDerivInd", NSMAP)),
         issuer_lei=elem.find("document:Issr", NSMAP).text,
         fisn=gen_attrs.find("document:ShrtNm", NSMAP).text,
-        trading_venue_attrs=parse_tv_attrs(elem.find("document:TradgVnRltAttrbts", NSMAP)),
+        trading_venue_attrs=parse_tv_attrs(elem.find("document:TradgVnRltdAttrbts", NSMAP)),
         notional_currency=gen_attrs.find("document:NtnlCcy", NSMAP).text,
-        technical_record_id=elem.find("document:TechRcrdId", NSMAP).text,
         technical_attributes=parse_tech_attrs(elem.find("document:TechAttrbts", NSMAP)),
         debt_attributes=parse_debt_attrs(elem.find("document:DebtInstrmAttrbts", NSMAP), optional=True),
-        derivative_attributes=parse_derivative_attrs(elem.find("document:DerivInstrmAttrbts", NSMAP))
+        derivative_attributes=parse_derivative_attrs(elem.find("document:DerivInstrmAttrbts", NSMAP), optional=True)
     )

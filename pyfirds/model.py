@@ -1,6 +1,6 @@
-from dataclasses import dataclass
-from datetime import datetime, timedelta, date
-from typing import Optional, Union, Any
+from dataclasses import dataclass, InitVar
+from datetime import datetime, date
+from typing import Optional, Union
 
 from pyfirds.categories import DebtSeniority, OptionType, OptionExerciseStyle, DeliveryType, BaseProduct, SubProduct, \
     FurtherSubProduct, IndexTermUnit, TransactionType, FinalPriceType, FxType, IndexName
@@ -124,24 +124,15 @@ class TechnicalAttributes:
     """The technical attributes of a financial instrument (ie, attributes relating to the submission of details of the
     financial instrument to FIRDS).
 
-    :param is_inconsistent: Whether the record has been flagged by FIRDS as inconsistent.
-    :param last_update: The date and time when this financial instrument was last received by FIRDS.
-    :param submission_date_time: The date and time when this instrument was originally received by at the submission
-        destination. Used by Competent Authorities to indicate the date and time they received the record from the
-        corresponding TV/SI. Only populated where a competent authority has aggregated a number of reports for
-        transmission to ESMA and details on the reference data report are different across the originally received
-        reports.
     :param relevant_competent_authority: The relevant competent authority for the instrument.
     :param publication_period: The period for which these details on the financial instrument was published.
-    :param never_published: Whether the instrument was only reported after their termination date and never published
-        on the reference data files.
+    :param relevant_trading_venue: The MIC of the trading venue that reported the record considered as the reference
+        for the published data.
     """
-    is_inconsistent: bool
-    last_update: datetime
-    submission_date_time: Optional[datetime]
     relevant_competent_authority: str
     publication_period: PublicationPeriod
-    never_published: bool
+    relevant_trading_venue: str
+
 
 
 @dataclass
@@ -163,7 +154,7 @@ class DebtAttributes:
     nominal_currency: str
     nominal_value_per_unit: float
     interest_rate: InterestRate
-    seniority: DebtSeniority
+    seniority: Optional[DebtSeniority]
 
 @dataclass
 class CommodityDerivativeAttributes:
@@ -178,8 +169,8 @@ class CommodityDerivativeAttributes:
     base_product: BaseProduct
     sub_product: Optional[SubProduct]
     further_sub_product: Optional[FurtherSubProduct]
-    transaction_type: TransactionType
-    final_price_type: FinalPriceType
+    transaction_type: Optional[TransactionType]
+    final_price_type: Optional[FinalPriceType]
 
 @dataclass
 class InterestRateDerivativeAttributes:
@@ -243,6 +234,9 @@ class UnderlyingBasket:
 class DerivativeAttributes:
     """Reference data for a derivative instrument.
 
+    Note that some other types of instrument can also have derivative-related attributes, eg, some collective investment
+    scheme (CFI code C) instruments.
+
     :param expiry_date: Expiry date of the instrument.
     :param price_multiplier: Number of units of the underlying instrument represented by a single derivative contract.
         For a future or option on an index, the amount per index point.
@@ -262,12 +256,12 @@ class DerivativeAttributes:
     """
 
     expiry_date: Optional[datetime]
-    price_multiplier: float
-    underlying: Union[UnderlyingSingle, UnderlyingBasket]
+    price_multiplier: Optional[float]
+    underlying: Optional[Union[UnderlyingSingle, UnderlyingBasket]]
     option_type: Optional[OptionType]
     strike_price: Optional[StrikePrice]
-    option_exercise_style: OptionExerciseStyle
-    delivery_type: DeliveryType
+    option_exercise_style: Optional[OptionExerciseStyle]
+    delivery_type: Optional[DeliveryType]
     commodity_attributes: Optional[CommodityDerivativeAttributes]
     ir_attributes: Optional[InterestRateDerivativeAttributes]
     fx_attributes: Optional[FxDerivativeAttributes]
@@ -293,8 +287,6 @@ class ReferenceData:
         of swaptions where the underlying swap is single currency, this will be the notional currency of the underlying
         swap. For swaptions where the underlying is multi-currency, this will be the notional currency of leg 1 of the
         swap.
-    :param technical_record_id: A unique identifier used by the FIRDS error management routine to identify any error
-        related to it. The reporting date followed by a sequence number (YYYYMMDDnxxxxxxx) could be used.
     :param technical_attributes: Technical attributes of the financial instrument.
     :param debt_attributes: If the instrument is a debt instrument, certain debt-related attributes.
     :param derivative_attributes: If the instrument is a derivative, certain derivative-related attributes.
@@ -309,9 +301,18 @@ class ReferenceData:
     fisn: str  # TODO: FISN class? https://www.iso.org/obp/ui/#iso:std:iso:18774:ed-1:v1:en
     trading_venue_attrs: TradingVenueAttributes
     notional_currency: str  # TODO: currency code class? https://en.wikipedia.org/wiki/ISO_4217
-    technical_record_id: str
     technical_attributes: TechnicalAttributes
-    debt_attributes: DebtAttributes
+    debt_attributes: Optional[DebtAttributes]
     derivative_attributes: Optional[DerivativeAttributes]
+
+    @property
+    def unique_id(self) -> str:
+        """A unique ID for the financial instrument reference data, consisting of its ISIN plus the MIC of the relevant
+        trading venue (as the same ISIN can be reported by multiple trading venues). This identifier is not separately
+        provided by the FIRDS data, but is generated from the `isin` and `trading_venue_attrs.trading_venue` attributes
+        of the :class:`ReferenceData` object, which are taken from the FIRDS data. The combination of ISIN and MIC is,
+        however, apparently used by ESMA to identify records uniquely.
+        """
+        return self.isin + self.technical_attributes.relevant_trading_venue
 
 

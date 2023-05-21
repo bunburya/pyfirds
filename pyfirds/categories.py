@@ -139,7 +139,14 @@ class SubProduct(Enum):
     CBRD = "Containerboard"
     NSPT = "Newsprint"
     PULP = "Pulp"
+    RCVP = "Recovered paper"
+
+    # POLY
     PLST = "Plastic"
+
+    # OTHC
+    DLVR = "Deliverable"
+    NDLV = "Non-deliverable"
 
 
 class FurtherSubProduct(Enum):
@@ -171,6 +178,7 @@ class FurtherSubProduct(Enum):
     # NGAS
     GASP = "GASPOOL"
     LNGG = "LNG"
+    NBPG = "NBP"
     NCGG = "NCG"
     TTFG = "TTF"
 
