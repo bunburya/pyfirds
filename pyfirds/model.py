@@ -1,4 +1,4 @@
-from dataclasses import dataclass, InitVar
+from dataclasses import dataclass
 from datetime import datetime, date
 from typing import Optional, Union
 
@@ -16,6 +16,7 @@ class IndexTerm:
 
     number: int
     unit: IndexTermUnit
+
 
 @dataclass
 class StrikePrice:
@@ -39,6 +40,7 @@ class StrikePrice:
     pending: bool
     currency: Optional[str]
 
+
 @dataclass
 class Index:
     """An index or benchmark rate that is used in the reference data for certain financial instruments.
@@ -53,6 +55,7 @@ class Index:
     name: Optional[Union[str, IndexName]]
     isin: Optional[str]
     term: Optional[IndexTerm]
+
 
 @dataclass
 class TradingVenueAttributes:
@@ -72,7 +75,7 @@ class TradingVenueAttributes:
 
     """
 
-    trading_venue: str  # TODO: MIC class? https://www.iso20022.org/market-identifier-codes
+    trading_venue: str  # TODO.md: MIC class? https://www.iso20022.org/market-identifier-codes
     requested_admission: bool
     approval_date: Optional[datetime]
     request_date: Optional[datetime]
@@ -108,6 +111,7 @@ class InterestRate:
         """Whether this interest rate is a floating interest rate."""
         return self.benchmark is not None
 
+
 @dataclass
 class PublicationPeriod:
     """The period for which details on a financial instrument were published.
@@ -118,6 +122,7 @@ class PublicationPeriod:
 
     from_date: date
     to_date: Optional[date]
+
 
 @dataclass
 class TechnicalAttributes:
@@ -132,7 +137,6 @@ class TechnicalAttributes:
     relevant_competent_authority: str
     publication_period: PublicationPeriod
     relevant_trading_venue: str
-
 
 
 @dataclass
@@ -156,6 +160,7 @@ class DebtAttributes:
     interest_rate: InterestRate
     seniority: Optional[DebtSeniority]
 
+
 @dataclass
 class CommodityDerivativeAttributes:
     """Additional reference data for a commodity derivative instrument.
@@ -171,6 +176,7 @@ class CommodityDerivativeAttributes:
     further_sub_product: Optional[FurtherSubProduct]
     transaction_type: Optional[TransactionType]
     final_price_type: Optional[FinalPriceType]
+
 
 @dataclass
 class InterestRateDerivativeAttributes:
@@ -190,6 +196,7 @@ class InterestRateDerivativeAttributes:
     fixed_rate_2: Optional[float]
     floating_rate_2: Optional[Index]
 
+
 @dataclass
 class FxDerivativeAttributes:
     """Additional reference data for a foreign exchange derivative instrument.
@@ -199,6 +206,7 @@ class FxDerivativeAttributes:
     """
     notional_currency_2: str
     fx_type: FxType
+
 
 @dataclass
 class UnderlyingSingle:
@@ -219,6 +227,7 @@ class UnderlyingSingle:
     index: Optional[Union[str, Index]]
     issuer_lei: Optional[str]
 
+
 @dataclass
 class UnderlyingBasket:
     """Reference data for a basket of assets which underlie a derivative instrument.
@@ -229,6 +238,7 @@ class UnderlyingBasket:
 
     isin: Optional[list[str]]
     issuer_lei: Optional[list[str]]
+
 
 @dataclass
 class DerivativeAttributes:
@@ -293,14 +303,14 @@ class ReferenceData:
 
     """
 
-    isin: str  # TODO: ISIN class?
+    isin: str  # TODO.md: ISIN class?
     full_name: str
-    cfi: str  # TODO: CFI class? https://en.wikipedia.org/wiki/ISO_10962
+    cfi: str  # TODO.md: CFI class? https://en.wikipedia.org/wiki/ISO_10962
     is_commodities_derivative: bool
-    issuer_lei: str  # TODO: LEI class?
-    fisn: str  # TODO: FISN class? https://www.iso.org/obp/ui/#iso:std:iso:18774:ed-1:v1:en
+    issuer_lei: str  # TODO.md: LEI class?
+    fisn: str  # TODO.md: FISN class? https://www.iso.org/obp/ui/#iso:std:iso:18774:ed-1:v1:en
     trading_venue_attrs: TradingVenueAttributes
-    notional_currency: str  # TODO: currency code class? https://en.wikipedia.org/wiki/ISO_4217
+    notional_currency: str  # TODO.md: currency code class? https://en.wikipedia.org/wiki/ISO_4217
     technical_attributes: TechnicalAttributes
     debt_attributes: Optional[DebtAttributes]
     derivative_attributes: Optional[DerivativeAttributes]
@@ -316,3 +326,21 @@ class ReferenceData:
         return self.isin + self.technical_attributes.relevant_trading_venue
 
 
+@dataclass
+class NewRecord(ReferenceData):
+    """Reference data for a newly added financial instrument. Supports all the same properties and methods as
+    :class:`ReferenceData`."""
+    pass
+
+
+@dataclass
+class ModifiedRecord(ReferenceData):
+    """Modified reference data for a financial instrument. Supports all the same properties and methods as
+    :class:`ReferenceData`."""
+    pass
+
+
+@dataclass
+class TerminatedRecord(ReferenceData):
+    """Reference data for a financial instrument that has ceased being traded on a trading venue. Supports all the same
+    properties and methods as :class:`ReferenceData`."""

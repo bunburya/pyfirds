@@ -7,7 +7,7 @@ from lxml import etree
 
 from pyfirds.download import FirdsSearcher, BASE_URL
 
-from test.values import get_test_run_dir
+from test.common import get_test_run_dir
 
 RUN_DIR = get_test_run_dir(__name__)
 

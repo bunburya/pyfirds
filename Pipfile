@@ -10,6 +10,7 @@ pysolr = "*"
 pytest = "*"
 lxml = "*"
 pytest-xdist = {extras = ["psutil"], version = "*"}
+types-lxml = "*"
 
 [dev-packages]
 
