@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Callable, TypeVar, Type, Union
+from typing import Optional, Callable, TypeVar, Type, Union, Generator
 
 from dateutil import parser
 from lxml import etree
@@ -79,7 +79,7 @@ def parse_datetime(elem: Optional[etree.Element], optional: bool = False) -> Opt
     return parser.parse(value)
 
 
-def get_ref_data(root: etree.Element) -> list[etree.Element]:
+def get_ref_data_elems(root: etree.Element) -> list[etree.Element]:
     """Get a list of `RefData` elements from the root element of a FULINS XML document."""
     return root.findall("biz_data:Pyld/document:Document/document:FinInstrmRptgRefDataRpt/document:RefData", NSMAP)
 
@@ -520,3 +520,29 @@ def parse_ref_data(elem: etree.Element, cls: Type[R] = ReferenceData,
         derivative_attributes=parse_derivative_attrs(elem.find("document:DerivInstrmAttrbts", nsmap), optional=True,
                                                      nsmap=nsmap)
     )
+
+
+def iter_ref_data(file: str, cls: Type[R] = ReferenceData, tag: str = "RefData",
+                  nsmap: Optional[dict[str, str]] = None) -> Generator[R, None, int]:
+    """Parse an XML file iteratively, creating and yielding a :class:`ReferenceData` (or subclass) object from each
+    relevant node, and deleting nodes as we finish with them, to preserve memory.
+    :param file: Path to the XML file to parse.
+    :param cls: The subclass of :class:`ReferenceData` that we want to create from the XML.
+    :param tag: The tax of the XML element to search for (after the namespace bit).
+    :param nsmap: A dict containing XML namespaces to be used when parsing the file.
+    :return: The number of relevant XML elements encountered.
+    """
+    if nsmap is None:
+        nsmap = NSMAP
+    tag = f"{{{nsmap['document']}}}{tag}"
+    count = 0
+    for evt, elem in etree.iterparse(file, tag=tag):
+
+        ref_data = parse_ref_data(elem, cls=cls)
+        elem.clear()
+        for ancestor in elem.xpath('ancestor-or-self::*'):
+            while ancestor.getprevious() is not None:
+                del ancestor.getparent()[0]
+        count += 1
+        yield ref_data
+    return count

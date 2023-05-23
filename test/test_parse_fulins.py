@@ -4,7 +4,7 @@ from typing import Iterable
 from lxml import etree
 
 from pyfirds.model import ReferenceData
-from pyfirds.parse.full import get_ref_data, parse_ref_data
+from pyfirds.parse.full import get_ref_data_elems, parse_ref_data
 from test.common import firds_files, FIRDS_DIR, verify_types
 
 
@@ -16,7 +16,7 @@ def parse_files(file_names: Iterable[str], parent_name: str):
         print(fname)
         tree = etree.parse(os.path.join(FIRDS_DIR, fname))
         root = tree.getroot()
-        ref_data = get_ref_data(root)
+        ref_data = get_ref_data_elems(root)
         for elem in ref_data:
             r = parse_ref_data(elem)
             verify_types(r, ReferenceData, parent_name)

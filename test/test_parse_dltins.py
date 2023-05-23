@@ -5,7 +5,7 @@ from lxml import etree
 
 from pyfirds.model import ReferenceData
 from pyfirds.parse.delta import get_new_records, get_modified_records, get_terminated_records
-from pyfirds.parse.full import get_ref_data, parse_ref_data
+from pyfirds.parse.full import parse_ref_data
 from test.common import TEST_DATA_DIR, FIRDS_DIR, verify_types
 
 FIRDS_DATA = os.path.join(TEST_DATA_DIR, "firds_data")
