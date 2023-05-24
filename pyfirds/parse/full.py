@@ -4,6 +4,7 @@ from typing import Optional, Callable, TypeVar, Type, Union, Generator
 
 from dateutil import parser
 from lxml import etree
+from lxml.etree import Element
 
 from pyfirds.categories import DebtSeniority, IndexTermUnit, IndexName, BaseProduct, SubProduct, FurtherSubProduct, \
     TransactionType, FinalPriceType, FxType, OptionType, DeliveryType, OptionExerciseStyle
@@ -522,27 +523,32 @@ def parse_ref_data(elem: etree.Element, cls: Type[R] = ReferenceData,
     )
 
 
-def iter_ref_data(file: str, cls: Type[R] = ReferenceData, tag: str = "RefData",
-                  nsmap: Optional[dict[str, str]] = None) -> Generator[R, None, int]:
+def iterparse(file: str, tag_to_func: Optional[dict[str, Callable[[etree.Element], R]]] = None,
+              nsmap: Optional[dict[str, str]] = None) -> Generator[R, None, dict[str, int]]:
     """Parse an XML file iteratively, creating and yielding a :class:`ReferenceData` (or subclass) object from each
     relevant node, and deleting nodes as we finish with them, to preserve memory.
     :param file: Path to the XML file to parse.
-    :param cls: The subclass of :class:`ReferenceData` that we want to create from the XML.
-    :param tag: The tax of the XML element to search for (after the namespace bit).
+    :param tag_to_func: A dict mapping each XML tag name (after the namespace bit) to the function that should be used
+        to parse relevant element into a subclass of :class:`ReferenceData`.
     :param nsmap: A dict containing XML namespaces to be used when parsing the file.
-    :return: The number of relevant XML elements encountered.
+    :return: A dict specifying the number of XML elements of each given tag encountered.
     """
+    if tag_to_func is None:
+        tag_to_func = {"RefData": parse_ref_data}
     if nsmap is None:
         nsmap = NSMAP
-    tag = f"{{{nsmap['document']}}}{tag}"
-    count = 0
-    for evt, elem in etree.iterparse(file, tag=tag):
 
-        ref_data = parse_ref_data(elem, cls=cls)
+    # tag_to_func with namespace bits included before tags
+    tag_to_func_ns = {f"{{{nsmap['document']}}}{t}": tag_to_func[t] for t in tag_to_func}
+
+    count = {t: 0 for t in tag_to_func_ns}
+    for evt, elem in etree.iterparse(file, tag=tag_to_func_ns.keys()):
+        func = tag_to_func_ns[elem.tag]
+        obj = func(elem, nsmap=nsmap)
         elem.clear()
         for ancestor in elem.xpath('ancestor-or-self::*'):
             while ancestor.getprevious() is not None:
                 del ancestor.getparent()[0]
-        count += 1
-        yield ref_data
+        count[elem.tag] += 1
+        yield obj
     return count

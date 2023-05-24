@@ -4,11 +4,11 @@ from typing import Iterable
 from lxml import etree
 
 from pyfirds.model import ReferenceData
-from pyfirds.parse.full import get_ref_data_elems, parse_ref_data
+from pyfirds.parse.full import get_ref_data_elems, parse_ref_data, iterparse, NSMAP
 from test.common import firds_files, FIRDS_DIR, verify_types
 
 
-def parse_files(file_names: Iterable[str], parent_name: str):
+def non_iter_parse_files(file_names: Iterable[str], parent_name: str):
     """Parse all files whose names start with `fname_filter`. Test that they can be properly parse into dataclass
     objects and perform some basic checks that the results look correct.
     """
@@ -20,6 +20,16 @@ def parse_files(file_names: Iterable[str], parent_name: str):
         for elem in ref_data:
             r = parse_ref_data(elem)
             verify_types(r, ReferenceData, parent_name)
+
+
+def iter_parse_files(file_names: Iterable[str], parent_name: str):
+    for f in file_names:
+        print(f)
+        for ref_data in iterparse(os.path.join(FIRDS_DIR, f), {"RefData": parse_ref_data}, NSMAP):
+            verify_types(ref_data, ReferenceData, "ref_data")
+
+
+parse_files = iter_parse_files
 
 
 def test_01_fulins_c():

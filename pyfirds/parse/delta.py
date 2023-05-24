@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Optional
 
 from lxml import etree
 
@@ -37,28 +37,37 @@ def get_cancelled_records(elem: etree.Element) -> list[etree.Element]:
     return elem.findall("document:FinInstrm/document:CancRcrd", NSMAP)
 
 
-def parse_new_record(elem: etree.Element) -> NewRecord:
+def parse_new_record(elem: etree.Element, nsmap: Optional[dict[str, str]] = None) -> NewRecord:
     """Parse a `NewRcrd XML element from FIRDS into a :class:`NewRecord` object.
 
     :param elem: The XML element to parse. The tag should be `{urn:iso:std:iso:20022:tech:xsd:auth.036.001.02}NewRcrd`
         or equivalent.
+    :param nsmap: A dict containing XML namespaces to be used when parsing `elem`.
     """
-    return parse_ref_data(elem, cls=NewRecord, nsmap=NSMAP)
+    if nsmap is None:
+        nsmap = NSMAP
+    return parse_ref_data(elem, cls=NewRecord, nsmap=nsmap)
 
 
-def parse_modified_record(elem: etree.Element) -> ModifiedRecord:
+def parse_modified_record(elem: etree.Element, nsmap: Optional[dict[str, str]] = None) -> ModifiedRecord:
     """Parse a `ModfdRcrd XML element from FIRDS into a :class:`ModifiedRecord` object.
 
     :param elem: The XML element to parse. The tag should be `{urn:iso:std:iso:20022:tech:xsd:auth.036.001.02}ModfdRcrd`
         or equivalent.
+    :param nsmap: A dict containing XML namespaces to be used when parsing `elem`.
     """
-    return parse_ref_data(elem, cls=ModifiedRecord, nsmap=NSMAP)
+    if nsmap is None:
+        nsmap = NSMAP
+    return parse_ref_data(elem, cls=ModifiedRecord, nsmap=nsmap)
 
 
-def parse_terminated_record(elem: etree.Element) -> TerminatedRecord:
+def parse_terminated_record(elem: etree.Element, nsmap: Optional[dict[str, str]] = None) -> TerminatedRecord:
     """Parse a `TermntdRcrd XML element from FIRDS into a :class:`TerminatedRecord` object.
 
     :param elem: The XML element to parse. The tag should be
         `{urn:iso:std:iso:20022:tech:xsd:auth.036.001.02}TermntdRcrd` or equivalent.
+    :param nsmap: A dict containing XML namespaces to be used when parsing `elem`.
     """
-    return parse_ref_data(elem, cls=TerminatedRecord, nsmap=NSMAP)
+    if nsmap is None:
+        nsmap = NSMAP
+    return parse_ref_data(elem, cls=TerminatedRecord, nsmap=nsmap)
