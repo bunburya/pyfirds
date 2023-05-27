@@ -11,6 +11,7 @@ from pyfirds.categories import DebtSeniority, IndexTermUnit, IndexName, BaseProd
 from pyfirds.model import ReferenceData, TradingVenueAttributes, TechnicalAttributes, DebtAttributes, \
     DerivativeAttributes, PublicationPeriod, InterestRate, IndexTerm, Index, CommodityDerivativeAttributes, \
     InterestRateDerivativeAttributes, FxDerivativeAttributes, UnderlyingSingle, UnderlyingBasket, StrikePrice
+from pyfirds.parse_utils import X
 
 NSMAP = {
     "biz_data": "urn:iso:std:iso:20022:tech:xsd:head.003.001.01",
@@ -523,7 +524,7 @@ def parse_ref_data(elem: etree.Element, cls: Type[R] = ReferenceData,
     )
 
 
-def iterparse(file: str, tag_to_func: Optional[dict[str, Callable[[etree.Element], R]]] = None,
+def iterparse(file: str, cls: Type[X]
               nsmap: Optional[dict[str, str]] = None) -> Generator[R, None, dict[str, int]]:
     """Parse an XML file iteratively, creating and yielding a :class:`ReferenceData` (or subclass) object from each
     relevant node, and deleting nodes as we finish with them, to preserve memory.

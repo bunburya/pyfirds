@@ -7,6 +7,7 @@ from pyfirds.model import ReferenceData, NewRecord, ModifiedRecord, TerminatedRe
 from pyfirds.parse.delta import get_new_records, get_modified_records, get_terminated_records, NSMAP, parse_new_record, \
     parse_modified_record, parse_terminated_record
 from pyfirds.parse.full import parse_ref_data, R, iterparse
+from pyfirds.parse_utils import X
 from test.common import TEST_DATA_DIR, FIRDS_DIR, verify_types
 
 FIRDS_DATA = os.path.join(TEST_DATA_DIR, "firds_data")
@@ -29,10 +30,10 @@ def non_iter_parse_files(file_names: Iterable[str], parse_func: Callable[[etree.
             verify_types(r, ReferenceData, parent_name)
 
 
-def iter_parse_files(file_names: Iterable[str], tag_name: str, func: Callable, cls: Type[R], parent_name: str):
+def iter_parse_files(file_names: Iterable[str], tag_name: str, cls: Type[X], parent_name: str):
     for f in file_names:
         print(f)
-        for obj in iterparse(os.path.join(FIRDS_DIR, f), {tag_name: func}, NSMAP):
+        for obj in iterparse(os.path.join(FIRDS_DIR, f), {tag_name: cls}):
             verify_types(obj, cls, parent_name)
 
 

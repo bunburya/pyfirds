@@ -6,11 +6,11 @@ from lxml import etree
 
 from pyfirds.categories import DebtSeniority, OptionType, OptionExerciseStyle, DeliveryType, BaseProduct, SubProduct, \
     FurtherSubProduct, IndexTermUnit, TransactionType, FinalPriceType, FxType, IndexName
-from pyfirds.parse_utils import parse_bool, optional, BaseXmlParsed, parse_datetime, _text_or_none
+from pyfirds.parse_utils import parse_bool, optional, BaseXmlParsed, parse_datetime, text_or_none
 
 
 @dataclass
-class IndexTerm:
+class IndexTerm(BaseXmlParsed):
     """The term of an index or benchmark.
 
     :param number: The number of weeks, months, etc (as determined by `unit`).
@@ -20,9 +20,22 @@ class IndexTerm:
     number: int
     unit: IndexTermUnit
 
+    @classmethod
+    def from_xml(cls, elem: etree.Element) -> 'IndexTerm':
+        """Parse a `Fltg/Term` XML element from FIRDS data into a :class:`IndexTerm` object.
+
+        :param elem: The XML element to parse. The tag should be `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}Term`
+            or equivalent.
+        """
+        nsmap = elem.nsmap
+        return IndexTerm(
+            number=int(elem.find("Val", nsmap).text),
+            unit=IndexTermUnit[elem.find("Unit", nsmap).text]
+        )
+
 
 @dataclass
-class StrikePrice:
+class StrikePrice(BaseXmlParsed):
     """The strike price of a derivative instrument.
 
     The different optional attributes are different ways in which the price may be expressed.  At most one of them
@@ -43,25 +56,76 @@ class StrikePrice:
     pending: bool
     currency: Optional[str]
 
+    @classmethod
+    def from_xml(cls, elem: etree.Element) -> 'StrikePrice':
+        """Parse a `DerivInstrmAttrbts/StrkPric` XML element from FIRDS into a :class:`StrikePrice` object.
+
+        :param elem: The XML element to parse. The tag should be
+            `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}StrkPric`or equivalent.
+        """
+        nsmap = elem.nsmap
+        price_xml = elem.find("Pric", nsmap)
+        if price_xml is not None:
+            return StrikePrice(
+                monetary_value=text_or_none(price_xml.find("MntryVal/Amt", nsmap), wrapper=float),
+                percentage=text_or_none(price_xml.find("Pctg", nsmap), wrapper=float),
+                yield_=text_or_none(price_xml.find("Yld", nsmap), wrapper=float),
+                basis_points=text_or_none(price_xml.find("BsisPts", nsmap), wrapper=float),
+                pending=False,
+                currency=text_or_none(price_xml.find("MntryVal/Ccy", nsmap))
+            )
+        else:
+            no_price_xml = elem.find("NoPric", nsmap)
+            return StrikePrice(
+                monetary_value=None,
+                percentage=None,
+                yield_=None,
+                basis_points=None,
+                pending=no_price_xml.find("Pdg", nsmap).text == "PNDG",
+                currency=text_or_none(no_price_xml.find("Ccy", nsmap))
+            )
 
 @dataclass
-class Index:
+class Index(BaseXmlParsed):
     """An index or benchmark rate that is used in the reference data for certain financial instruments.
 
     :param name: The name of the index or benchmark. Should either be a :class:`IndexName` object or a 25 character
         string.
     :param isin: The ISIN of the index or benchmark.
     :param term: The term of the index or benchmark.
-
-
     """
     name: Optional[Union[str, IndexName]]
     isin: Optional[str]
     term: Optional[IndexTerm]
 
+    @classmethod
+    def from_xml(cls, elem: etree.Element) -> 'Index':
+        """Parse an `IntrstRate/Fltg` or `DerivInstrmAttrbts/UndrlygInstrm/Sngl/Indx/Nm/RefRate/Nm` XML element from
+        FIRDS data into a :class:`Index` object.
+
+        :param elem: The XML element to parse. The element should be of type `FloatingInterestRate8` as defined in the
+            FULINS XSD.
+        """
+        nsmap = elem.nsmap
+        ref_rate_elem = elem.find("RefRate", nsmap)
+        index_text = text_or_none(ref_rate_elem.find("Indx", nsmap))
+        if index_text is not None:
+            # Try to get the appropriate IndexName enum, otherwise just treat the value as a string
+            try:
+                name = IndexName[index_text]
+            except KeyError:
+                name = index_text
+        else:
+            name = text_or_none(ref_rate_elem.find("Nm", nsmap))
+        return Index(
+            isin=text_or_none(ref_rate_elem.find("ISIN", nsmap)),
+            name=name,
+            term=optional(elem.find("Term", nsmap), IndexTerm)
+        )
+
 
 @dataclass
-class TradingVenueAttributes:
+class TradingVenueAttributes(BaseXmlParsed):
     """Data relating to the trading or admission to trading of a financial instrument on a trading venue.
 
     :param trading_venue: The Market Identifier Code (ISO 20022) for the trading venue or systemic internaliser. A
@@ -78,16 +142,33 @@ class TradingVenueAttributes:
 
     """
 
-    trading_venue: str  # TODO.md: MIC class? https://www.iso20022.org/market-identifier-codes
+    trading_venue: str  # TODO: MIC class? https://www.iso20022.org/market-identifier-codes
     requested_admission: bool
     approval_date: Optional[datetime]
     request_date: Optional[datetime]
     admission_or_first_trade_date: Optional[datetime]
     termination_date: Optional[datetime]
 
+    @classmethod
+    def from_xml(cls, elem: etree.Element) -> "TradingVenueAttributes":
+        """Parse a `TradgVnRltAttrbts` XML element from FIRDS into a :class:`TradingVenueAttributes` object.
+
+        :param elem: The XML element to parse. The tag should be
+            `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}TradgVnRltAttrbts` or equivalent.
+        """
+        nsmap = elem.nsmap
+        return TradingVenueAttributes(
+            trading_venue=elem.find("Id", nsmap).text,
+            requested_admission=parse_bool(elem.find("IssrReq", nsmap)),
+            approval_date=parse_datetime(elem.find("AdmssnApprvlDtByIssr", nsmap), optional=True),
+            request_date=parse_datetime(elem.find("ReqForAdmssnDt", nsmap), optional=True),
+            admission_or_first_trade_date=parse_datetime(elem.find("FrstTradDt", nsmap)),
+            termination_date=parse_datetime(elem.find("TermntnDt", nsmap), optional=True)
+        )
+
 
 @dataclass
-class InterestRate:
+class InterestRate(BaseXmlParsed):
     """Data about the interest rate applicable to a debt instrument.
 
     :param fixed_rate: The interest rate payable on a fixed rate instrument, expressed as a percentage (eg, 7.5 means
@@ -114,9 +195,28 @@ class InterestRate:
         """Whether this interest rate is a floating interest rate."""
         return self.benchmark is not None
 
+    @classmethod
+    def from_xml(cls, elem: etree.Element) -> "InterestRate":
+        """Parse an `IntrstRate` XML element from FIRDS data into a :class:`InterestRate` object.
+
+        :param elem: The XML element to parse. The tag should be
+            `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}IntrstRate` or equivalent.
+        """
+        nsmap = elem.nsmap
+        floating_elem = elem.find("Fltg", nsmap)
+        if floating_elem is not None:
+            spread = text_or_none(floating_elem.find("BsisPtSprd", nsmap), wrapper=int)
+        else:
+            spread = None
+        return InterestRate(
+            fixed_rate=text_or_none(elem.find("Fxd", nsmap), float),
+            benchmark=optional(floating_elem, Index),
+            spread=spread
+        )
+
 
 @dataclass
-class PublicationPeriod:
+class PublicationPeriod(BaseXmlParsed):
     """The period for which details on a financial instrument were published.
 
     :param from_date: The date from which details on the financial instrument were published.
@@ -126,9 +226,29 @@ class PublicationPeriod:
     from_date: date
     to_date: Optional[date]
 
+    @classmethod
+    def from_xml(cls, elem: etree.Element) -> "PublicationPeriod":
+        """Parse a `PblctnPrd` XML element from FIRDS data into a :class:`PublicationPeriod` object.
+
+        :param elem: The XML element to parse. The tag should be
+            `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}PblctnPrd` or equivalent.
+        """
+        nsmap = elem.nsmap
+        from_to = elem.find("FrDtToDt", nsmap)
+        if from_to is not None:
+            return PublicationPeriod(
+                from_date=parse_datetime(from_to.find("FrDt", nsmap)),
+                to_date=parse_datetime(from_to.find("ToDt", nsmap), optional=True)
+            )
+        else:
+            return PublicationPeriod(
+                from_date=parse_datetime(elem.find("FrDt", nsmap)),
+                to_date=None
+            )
+
 
 @dataclass
-class TechnicalAttributes:
+class TechnicalAttributes(BaseXmlParsed):
     """The technical attributes of a financial instrument (ie, attributes relating to the submission of details of the
     financial instrument to FIRDS).
 
@@ -141,9 +261,23 @@ class TechnicalAttributes:
     publication_period: PublicationPeriod
     relevant_trading_venue: str
 
+    @classmethod
+    def from_xml(cls, elem: etree.Element) -> "TechnicalAttributes":
+        """Parse a `TechAttrbts` XML element from FIRDS data into a :class:`TechnicalAttributes` object.
+
+        :param elem: The XML element to parse. The tag should be
+            `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}TechAttrbts` or equivalent.
+        """
+        nsmap = elem.nsmap
+        return TechnicalAttributes(
+            relevant_competent_authority=elem.find("RlvntCmptntAuthrty", nsmap).text,
+            publication_period=PublicationPeriod.from_xml(elem.find("PblctnPrd", nsmap)),
+            relevant_trading_venue=elem.find("RlvntTradgVn", nsmap).text
+        )
+
 
 @dataclass
-class DebtAttributes:
+class DebtAttributes(BaseXmlParsed):
     """Reference data for bonds or other forms of securitised debt.
 
     :param total_issued_amount: The total issued nominal amount of the financial instrument. Amount is expressed in the
@@ -163,9 +297,22 @@ class DebtAttributes:
     interest_rate: InterestRate
     seniority: Optional[DebtSeniority]
 
+    @classmethod
+    def from_xml(cls, elem: etree.Element) -> "DebtAttributes":
+        nsmap = elem.nsmap
+        issued_amount_elem = elem.find("TtlIssdNmnlAmt", nsmap)
+        return DebtAttributes(
+            total_issued_amount=float(issued_amount_elem.text),
+            maturity_date=parse_datetime(elem.find("MtrtyDt", nsmap), optional=True),
+            nominal_currency=issued_amount_elem.attrib["Ccy"],
+            nominal_value_per_unit=float(elem.find("NmnlValPerUnit", nsmap).text),
+            interest_rate=InterestRate.from_xml(elem.find("IntrstRate", nsmap)),
+            seniority=text_or_none(elem.find("DebtSnrty", nsmap), wrapper=DebtSeniority)
+        )
+
 
 @dataclass
-class CommodityDerivativeAttributes:
+class CommodityDerivativeAttributes(BaseXmlParsed):
     """Additional reference data for a commodity derivative instrument.
 
     :param base_product: The base product for the underlying asset class.
@@ -180,9 +327,44 @@ class CommodityDerivativeAttributes:
     transaction_type: Optional[TransactionType]
     final_price_type: Optional[FinalPriceType]
 
+    @classmethod
+    def from_xml(cls, elem: etree.Element) -> 'CommodityDerivativeAttributes':
+        """Parse a `DerivInstrmAttrbts/AsstClssSpcfcAttrbts/Cmmdty` XML element from FIRDS into a
+        :class:`CommodityDerivativeAttributes` object.
+
+        :param elem: The XML element to parse. The tag should be
+            `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}Cmmdty` or equivalent.
+        """
+        # Normal structure is `Pdct/<base product>/<sub product>/BasePdct`, but if the base product does not have an
+        # associated sub product then structure will be `Pdct/<base product>/BasePdct`. So we first check for
+        # `BasePdct` two levels down, if it's not there we check one level down. We also know at that point that
+        # there is no sub product (and therefore no further sub product) associated.
+        nsmap = elem.nsmap
+        product_container_elem = elem.find("Pdct", nsmap)
+        base_prod_elem = product_container_elem.find("*/*/BasePdct", nsmap)
+        if base_prod_elem is None:
+            # No sub product
+            base_product = BaseProduct[product_container_elem.find("*/BasePdct", nsmap).text]
+            sub_product = None
+            further_sub_product = None
+        else:
+            # Sub product
+            base_product = BaseProduct[base_prod_elem.text]
+            product_elem = base_prod_elem.getparent()
+            sub_product = text_or_none(product_elem.find("SubPdct", nsmap), SubProduct)
+            further_sub_product = text_or_none(product_elem.find("AddtlSubPdct", nsmap), FurtherSubProduct)
+
+        return CommodityDerivativeAttributes(
+            base_product=base_product,
+            sub_product=sub_product,
+            further_sub_product=further_sub_product,
+            transaction_type=text_or_none(elem.find("TxTp", nsmap), wrapper=TransactionType),
+            final_price_type=text_or_none(elem.find("FnlPricTp", nsmap), wrapper=FinalPriceType)
+        )
+
 
 @dataclass
-class InterestRateDerivativeAttributes:
+class InterestRateDerivativeAttributes(BaseXmlParsed):
     """Additional reference data for an interest rate derivative instrument.
 
     :param reference_rate: The reference rate.
@@ -199,9 +381,33 @@ class InterestRateDerivativeAttributes:
     fixed_rate_2: Optional[float]
     floating_rate_2: Optional[Index]
 
+    @classmethod
+    def from_xml(cls, elem: etree.Element) -> "InterestRateDerivativeAttributes":
+        """Parse a `DerivInstrmAttrbts/AsstClssSpcfcAttrbts/Intrst` XML element from FIRDS into a
+        :class:`InterestRateDerivativeAttributes` object.
+
+        :param elem: The XML element to parse. The tag should be
+            `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}Intrst` or equivalent.
+        """
+        nsmap = elem.nsmap
+        other_leg_elem = elem.find("OthrLegIntrstRate", nsmap)
+        if other_leg_elem is not None:
+            fixed_rate_2 = text_or_none(other_leg_elem.find("Fxd", nsmap), wrapper=float)
+            floating_rate_2 = optional(other_leg_elem.find("Fltg", nsmap), Index)
+        else:
+            fixed_rate_2 = None
+            floating_rate_2 = None
+        return InterestRateDerivativeAttributes(
+            reference_rate=Index.from_xml(elem.find("IntrstRate", nsmap)),
+            notional_currency_2=text_or_none(elem.find("OtherNtnlCcy", nsmap)),
+            fixed_rate_1=text_or_none(elem.find("FrstLegIntrstRate/Fxd", nsmap), wrapper=float),
+            fixed_rate_2=fixed_rate_2,
+            floating_rate_2=floating_rate_2
+        )
+
 
 @dataclass
-class FxDerivativeAttributes:
+class FxDerivativeAttributes(BaseXmlParsed):
     """Additional reference data for a foreign exchange derivative instrument.
 
     :param notional_currency_2: The second currency of the currency pair.
@@ -209,6 +415,20 @@ class FxDerivativeAttributes:
     """
     notional_currency_2: str
     fx_type: FxType
+
+    @classmethod
+    def from_xml(cls, elem: etree.Element) -> "FxDerivativeAttributes":
+        """Parse a `DerivInstrmAttrbts/AsstClssSpcfcAttrbts/FX` XML element from FIRDS into a
+        :class:`FxDerivativeAttributes` object.
+
+        :param elem: The XML element to parse. The tag should be `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}FX` or
+            equivalent.
+        """
+        nsmap = elem.nsmap
+        return FxDerivativeAttributes(
+            notional_currency_2=elem.find("OtherNtnlCcy", nsmap).text,
+            fx_type=FxType[elem.find("FxTp", nsmap).text]
+        )
 
 
 @dataclass
@@ -244,6 +464,64 @@ class UnderlyingBasket:
 
 
 @dataclass
+class DerivativeUnderlying(BaseXmlParsed):
+    """Reference data for the asset underlying a derivative. The underlying may be a single issuer, instrument or index,
+    or may be a basket of instruments or issuers. The relevant parameter will be populated and the rest will be None.
+
+    :param single: Data for a single instrument, index or issuer underlying a derivative instrument, or None if the
+        underlying is a basket.
+    :param basket: Data for a basket of instruments or issuers underlying a derivative instrument, or None if the
+        underlying is a single instrument, index or issuer.
+    """
+
+    single: Optional[UnderlyingSingle]
+    basket: Optional[UnderlyingBasket]
+
+    @classmethod
+    def from_xml(cls, elem: [etree.Element]) -> "DerivativeUnderlying":
+        """Parse a `DerivInstrmAttrbts/UndrlygInstrm` XML element from FIRDS into a :class:`UnderlyingSingle` or
+        :class:`UnderlyingBasket` object as appropriate.
+
+        :param elem: The XML element to parse. The tag should be
+            `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}UndrlygInstrm` or equivalent.
+        """
+
+        nsmap = elem.nsmap
+        single = basket = None
+        if (single_underlying := elem.find("Sngl", nsmap)) is not None:
+            # An index can be represented by an ISIN or by a name and optional term. Just like our Index dataclass.
+            # Annoyingly, unlike with `Fltg` elements where all three elements are combined in a single `RefRate`
+            # element, here the ISIN, if present, is directly under `Indx` whereas the name and term are under
+            # `Index/Nm/RefRate`.
+            index_xml = single_underlying.find("Indx", nsmap)
+            if index_xml is None:
+                index = None
+            else:
+                index_isin = text_or_none(index_xml.find("ISIN", nsmap))
+                index = optional(index_xml.find("Nm", nsmap), Index)
+                if index is None:
+                    index = Index(isin=index_isin, name=None, term=None)
+                else:
+                    index.isin = index_isin
+
+            single = UnderlyingSingle(
+                isin=text_or_none(single_underlying.find("ISIN", nsmap)),
+                index=index,
+                issuer_lei=text_or_none(single_underlying.find("LEI", nsmap))
+            )
+        elif (basket_underlying := elem.find("Bskt", nsmap)) is not None:
+            basket = UnderlyingBasket(
+                isin=[i.text for i in basket_underlying.findall("ISIN", nsmap)],
+                issuer_lei=[i.text for i in basket_underlying.findall("LEI", nsmap)]
+            )
+        else:
+            raise ValueError("Could not find `Sngl` or `Bskt` element in `UndrlygInstrm` element.")
+        return DerivativeUnderlying(
+            single=single,
+            basket=basket
+        )
+
+@dataclass
 class DerivativeAttributes(BaseXmlParsed):
     """Reference data for a derivative instrument.
 
@@ -270,7 +548,7 @@ class DerivativeAttributes(BaseXmlParsed):
 
     expiry_date: Optional[datetime]
     price_multiplier: Optional[float]
-    underlying: Optional[Union[UnderlyingSingle, UnderlyingBasket]]
+    underlying: Optional[DerivativeUnderlying]
     option_type: Optional[OptionType]
     strike_price: Optional[StrikePrice]
     option_exercise_style: Optional[OptionExerciseStyle]
@@ -280,37 +558,34 @@ class DerivativeAttributes(BaseXmlParsed):
     fx_attributes: Optional[FxDerivativeAttributes]
 
     @classmethod
-    def from_xml(cls, elem: etree.Element) -> 'DerivativeAttributes':
+    def from_xml(cls, elem: etree.Element) -> "DerivativeAttributes":
         """Parse a `DerivInstrmAttrbts` XML element from FIRDS into a :class:`DerivativeAttributes` object.
 
-        :param elem: The XML element to parse, as a :class:`etree._Element` object."""
+        :param elem: The XML element to parse, as a :class:`etree._Element` object.
+        """
         # TODO: Continue refactor
         nsmap = elem.nsmap
         return DerivativeAttributes(
             expiry_date=parse_datetime(elem.find("XpryDt", nsmap), optional=True),
-            price_multiplier=_text_or_none(elem.find("document:PricMltplr", nsmap), wrapper=float),
+            price_multiplier=text_or_none(elem.find("PricMltplr", nsmap), wrapper=float),
             # Will probably need single "Underlying" class
-            underlying=parse_derivative_underlying(elem.find("document:UndrlygInstrm", nsmap), optional=True,
-                                                   nsmap=nsmap),
-            option_type=_text_or_none(elem.find("document:OptnTp", nsmap), wrapper=OptionType),
-            strike_price=parse_strike_price(elem.find("document:StrkPric", nsmap), optional=True, nsmap=nsmap),
-            option_exercise_style=_text_or_none(elem.find("document:OptnExrcStyle", nsmap),
-                                                wrapper=OptionExerciseStyle),
-            delivery_type=_text_or_none(elem.find("document:DlvryTp", nsmap), wrapper=DeliveryType),
-            commodity_attributes=parse_commodity_deriv_attrs(
-                elem.find("document:AsstClssSpcfcAttrbts/document:Cmmdty", nsmap),
-                optional=True,
-                nsmap=nsmap
+            underlying=optional(elem.find("UndrlygInstrm", nsmap), DerivativeUnderlying),
+            option_type=text_or_none(elem.find("OptnTp", nsmap), wrapper=OptionType),
+            strike_price=optional(elem.find("StrkPric", nsmap), StrikePrice),
+            option_exercise_style=text_or_none(elem.find("OptnExrcStyle", nsmap),
+                                               wrapper=OptionExerciseStyle),
+            delivery_type=text_or_none(elem.find("DlvryTp", nsmap), wrapper=DeliveryType),
+            commodity_attributes=optional(
+                elem.find("AsstClssSpcfcAttrbts/Cmmdty", nsmap),
+                CommodityDerivativeAttributes
             ),
-            ir_attributes=parse_ir_attrs(
-                elem.find("document:AsstClssSpcfcAttrbts/document:Intrst", nsmap),
-                optional=True,
-                nsmap=nsmap
+            ir_attributes=optional(
+                elem.find("AsstClssSpcfcAttrbts/Intrst", nsmap),
+                InterestRateDerivativeAttributes
             ),
-            fx_attributes=parse_fx_attrs(
-                elem.find("document:AsstClssSpcfcAttrbts/document:Fx", nsmap),
-                optional=True,
-                nsmap=nsmap
+            fx_attributes=optional(
+                elem.find("AsstClssSpcfcAttrbts/Fx", nsmap),
+                FxDerivativeAttributes
             )
         )
 
@@ -341,14 +616,14 @@ class ReferenceData(BaseXmlParsed):
 
     """
 
-    isin: str  # TODO.md: ISIN class?
+    isin: str  # TODO: ISIN class?
     full_name: str
-    cfi: str  # TODO.md: CFI class? https://en.wikipedia.org/wiki/ISO_10962
+    cfi: str  # TODO: CFI class? https://en.wikipedia.org/wiki/ISO_10962
     is_commodities_derivative: bool
-    issuer_lei: str  # TODO.md: LEI class?
-    fisn: str  # TODO.md: FISN class? https://www.iso.org/obp/ui/#iso:std:iso:18774:ed-1:v1:en
+    issuer_lei: str  # TODO: LEI class?
+    fisn: str  # TODO: FISN class? https://www.iso.org/obp/ui/#iso:std:iso:18774:ed-1:v1:en
     trading_venue_attrs: TradingVenueAttributes
-    notional_currency: str  # TODO.md: currency code class? https://en.wikipedia.org/wiki/ISO_4217
+    notional_currency: str  # TODO: currency code class? https://en.wikipedia.org/wiki/ISO_4217
     technical_attributes: TechnicalAttributes
     debt_attributes: Optional[DebtAttributes]
     derivative_attributes: Optional[DerivativeAttributes]
@@ -364,12 +639,12 @@ class ReferenceData(BaseXmlParsed):
         return self.isin + self.technical_attributes.relevant_trading_venue
 
     @classmethod
-    def from_xml(cls, elem: etree.Element) -> 'ReferenceData':
+    def from_xml(cls, elem: etree.Element) -> "ReferenceData":
         """Parse a `RefData` XML element from FIRDS into a :class:`ReferenceData` object (or appropriate subclass).
 
-        :param elem: The XML element to parse. The tag should be `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}RefData`
-            or an equivalent XML element which belongs to the `document` namespace in `nsmap`.
-        :param nsmap: A dict containing XML namespaces to be used when parsing `elem`.
+        :param elem: The XML element to parse. The tag should be
+            `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}RefData` or an equivalent XML element which belongs to the
+            `document` namespace in `nsmap`.
         """
         nsmap = elem.nsmap
         gen_attrs = elem.find("FinInstrmGnlAttrbts", nsmap)
@@ -383,8 +658,8 @@ class ReferenceData(BaseXmlParsed):
             trading_venue_attrs=TradingVenueAttributes.from_xml(elem.find("TradgVnRltdAttrbts", nsmap)),
             notional_currency=gen_attrs.find("NtnlCcy", nsmap).text,
             technical_attributes=TechnicalAttributes.from_xml(elem.find("TechAttrbts", nsmap)),
-            debt_attributes=optional(DebtAttributes.from_xml(elem.find("DebtInstrmAttrbts", nsmap))),
-            derivative_attributes=optional(DerivativeAttributes.from_xml(elem.find("DerivInstrmAttrbts", nsmap)))
+            debt_attributes=optional(elem.find("DebtInstrmAttrbts", nsmap), DebtAttributes),
+            derivative_attributes=optional(elem.find("DerivInstrmAttrbts", nsmap), DerivativeAttributes)
         )
 
 

@@ -1,32 +1,30 @@
 import os
 from typing import Iterable
 
-from lxml import etree
-
 from pyfirds.model import ReferenceData
-from pyfirds.parse.full import get_ref_data_elems, parse_ref_data, iterparse, NSMAP
+from pyfirds.parse_utils import iterparse
 from test.common import firds_files, FIRDS_DIR, verify_types
 
 
-def non_iter_parse_files(file_names: Iterable[str], parent_name: str):
-    """Parse all files whose names start with `fname_filter`. Test that they can be properly parse into dataclass
-    objects and perform some basic checks that the results look correct.
-    """
-    for fname in file_names:
-        print(fname)
-        tree = etree.parse(os.path.join(FIRDS_DIR, fname))
-        root = tree.getroot()
-        ref_data = get_ref_data_elems(root)
-        for elem in ref_data:
-            r = parse_ref_data(elem)
-            verify_types(r, ReferenceData, parent_name)
+#def non_iter_parse_files(file_names: Iterable[str], parent_name: str):
+#    """Parse all files whose names start with `fname_filter`. Test that they can be properly parse into dataclass
+#    objects and perform some basic checks that the results look correct.
+#    """
+#    for fname in file_names:
+#        print(fname)
+#        tree = etree.parse(os.path.join(FIRDS_DIR, fname))
+#        root = tree.getroot()
+#        ref_data = get_ref_data_elems(root)
+#        for elem in ref_data:
+#            r = ReferenceData.from_xml(elem)
+#            verify_types(r, ReferenceData, parent_name)
 
 
 def iter_parse_files(file_names: Iterable[str], parent_name: str):
     for f in file_names:
         print(f)
-        for ref_data in iterparse(os.path.join(FIRDS_DIR, f), {"RefData": parse_ref_data}, NSMAP):
-            verify_types(ref_data, ReferenceData, "ref_data")
+        for ref_data in iterparse(os.path.join(FIRDS_DIR, f), {"RefData": ReferenceData}):
+            verify_types(ref_data, ReferenceData, parent_name)
 
 
 parse_files = iter_parse_files

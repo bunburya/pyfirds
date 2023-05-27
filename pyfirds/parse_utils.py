@@ -1,21 +1,26 @@
+from abc import ABC, abstractmethod
+from datetime import datetime
 from enum import Enum
-from typing import Optional, Union, Callable, Type, TypeVar
+from typing import Optional, Union, Callable, Type, TypeVar, Generator
 
+from dateutil.parser import parse
 from lxml import etree
+from lxml.etree import QName
 
-
-class BaseXmlParsed:
+class BaseXmlParsed(ABC):
     """A base class for objects which are parsed from an XML element."""
 
     @classmethod
+    @abstractmethod
     def from_xml(cls, elem: etree.Element) -> 'BaseXmlParsed':
         raise NotImplementedError
 
 
 T = TypeVar("T")
+X = TypeVar("X", bound=BaseXmlParsed)
 
 
-def _text_or_none(
+def text_or_none(
         elem: Optional[etree.Element],
         wrapper: Optional[Union[Callable[[str], T], Type[Enum]]] = None) -> Optional[Union[T, Enum, str]]:
     """A convenience function that takes an XML element or None, and returns the element's text if it exists or None
@@ -71,10 +76,9 @@ def parse_datetime(elem: Optional[etree.Element], optional: bool = False) -> Opt
         else:
             raise ValueError(f"Received NoneType when parsing non-optional element.")
     value = elem.text
-    return parser.parse(value)
+    return parse(value)
 
 
-X = TypeVar("X", bound=BaseXmlParsed)
 
 
 def optional(elem: Optional[etree.Element], cls: Type[X]) -> Optional[X]:
@@ -82,3 +86,31 @@ def optional(elem: Optional[etree.Element], cls: Type[X]) -> Optional[X]:
         return None
     else:
         return cls.from_xml(elem)
+
+
+def iterparse(
+        file: str,
+        tag_localname_to_cls: dict[str, Type[X]]
+) -> Generator[X, None, dict[str, int]]:
+    """Parse an XML file iteratively, creating and yielding a :class:`ReferenceData` (or subclass) object from each
+    relevant node, and deleting nodes as we finish with them, to preserve memory.
+    :param file: Path to the XML file to parse.
+    :param tag_localname_to_cls: A dict mapping each XML tag name (after the namespace bit) to the class to be generated from it
+        (which should be a subclass of :class:`BaseXmlParsed` or otherwise have an appropriate `from_xml` class method).
+    :return: A dict specifying the number of XML elements of each given tag encountered.
+    """
+
+    tags = ["{*}" + t for t in tag_localname_to_cls]
+
+    count = {t: 0 for t in tag_localname_to_cls}
+    for evt, elem in etree.iterparse(file, tag=tags):
+        localname = QName(elem).localname
+        cls = tag_localname_to_cls[localname]
+        obj = cls.from_xml(elem)
+        elem.clear()
+        for ancestor in elem.xpath('ancestor-or-self::*'):
+            while ancestor.getprevious() is not None:
+                del ancestor.getparent()[0]
+        count[localname] += 1
+        yield obj
+    return count
