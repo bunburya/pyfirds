@@ -66,6 +66,17 @@ debt_attributes = Table(
     Column("seniority", String(4))
 )
 
+strike_price = Table(
+    "strike_price",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("type", String(14)),
+    Column("price", Float),
+    Column("pending", Boolean, nullable=False),
+    Column("currency", String(3))
+
+)
+
 derivative_attributes = Table(
     "derivative_attributes",
     metadata,
@@ -75,7 +86,9 @@ derivative_attributes = Table(
     Column("underlying_single_id", Integer, ForeignKey("underlying_single.id")),
     Column("underlying_basket_id", Integer, ForeignKey("underlying_basket.id")),
     Column("option_type", String(4)),
-    Column("strike_price")
+    Column("strike_price_id", Integer, ForeignKey("strike_price.id")),
+    Column("option_exercise_style", String(4)),
+    Column("delivery_type", String(4))
 )
 
 reference_data = Table(

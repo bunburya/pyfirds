@@ -38,24 +38,15 @@ class IndexTerm(BaseXmlParsed):
 class StrikePrice(BaseXmlParsed):
     """The strike price of a derivative instrument.
 
-    The different optional attributes are different ways in which the price may be expressed.  At most one of them
-    should be specified.
-
-    :param monetary_value: The price expressed as a monetary value.
-    :param percentage: The price expressed as a percentage.
-    :param yield_: The price expressed as a yield.
-    :param basis_points: The price expressed as basis points.
+    :param price_type: How the price is expressed (as a monetary value, percentage, yield or basis points).
+        Alternatively identifies if no price is available.
+    :param price: The actual price, expressed according to `price_type`. Will be None if no price is available.
     :param pending: Whether the price is currently not available and is pending.
-    :param currency: The currency in which the price is denominated.
+    :param currency: The currency in which the price is denominated (if appropriate).
     """
 
     price_type: StrikePriceType
     price: Optional[float]
-
-    monetary_value: Optional[float]
-    percentage: Optional[float]
-    yield_: Optional[float]
-    basis_points: Optional[float]
     pending: bool
     currency: Optional[str]
 
@@ -69,21 +60,29 @@ class StrikePrice(BaseXmlParsed):
         nsmap = elem.nsmap
         price_xml = elem.find("Pric", nsmap)
         if price_xml is not None:
+            if (val_xml := price_xml.find("MntryVal/Amt", nsmap)) is not None:
+                price_type = StrikePriceType.MONETARY_VALUE
+            elif (val_xml := price_xml.find("Pctg", nsmap)) is not None:
+                price_type = StrikePriceType.PERCENTAGE
+            elif (val_xml := price_xml.find("Yld", nsmap)) is not None:
+                price_type = StrikePriceType.YIELD
+            elif (val_xml := price_xml.find("BsisPts", nsmap)) is not None:
+                price_type = StrikePriceType.BASIS_POINTS
+            else:
+                raise ValueError("`Pric` element present but no price identified when parsing `StrkPric` element.")
+            price = text_or_none(val_xml, wrapper=float)
+
             return StrikePrice(
-                monetary_value=text_or_none(price_xml.find("MntryVal/Amt", nsmap), wrapper=float),
-                percentage=text_or_none(price_xml.find("Pctg", nsmap), wrapper=float),
-                yield_=text_or_none(price_xml.find("Yld", nsmap), wrapper=float),
-                basis_points=text_or_none(price_xml.find("BsisPts", nsmap), wrapper=float),
+                price_type=price_type,
+                price=price,
                 pending=False,
                 currency=text_or_none(price_xml.find("MntryVal/Ccy", nsmap))
             )
         else:
             no_price_xml = elem.find("NoPric", nsmap)
             return StrikePrice(
-                monetary_value=None,
-                percentage=None,
-                yield_=None,
-                basis_points=None,
+                price_type=StrikePriceType.NO_PRICE,
+                price=None,
                 pending=no_price_xml.find("Pdg", nsmap).text == "PNDG",
                 currency=text_or_none(no_price_xml.find("Ccy", nsmap))
             )
