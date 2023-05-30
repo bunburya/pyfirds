@@ -2,7 +2,7 @@ import os
 from typing import Iterable
 
 from pyfirds.model import ReferenceData
-from pyfirds.parse_utils import iterparse
+from pyfirds.parse import iterparse
 from test.common import firds_files, FIRDS_DIR, verify_types
 
 

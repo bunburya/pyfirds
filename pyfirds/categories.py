@@ -1,6 +1,6 @@
 """Some data types that are used as building blocks in the main ReferenceData classes."""
 
-from enum import Enum, StrEnum
+from enum import Enum, StrEnum, auto
 
 
 class IndexTermUnit(Enum):
@@ -271,3 +271,11 @@ class FxType(Enum):
     FXCR = "FX Cross Rates"
     FXEM = "FX Emerging Markets"
     FXMJ = "FX Majors"
+
+
+class StrikePriceType(StrEnum):
+    MONETARY_VALUE = auto()
+    PERCENTAGE = auto()
+    YIELD = auto()
+    BASIS_POINTS = auto()
+    NO_PRICE = auto()

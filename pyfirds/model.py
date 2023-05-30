@@ -5,8 +5,8 @@ from typing import Optional, Union
 from lxml import etree
 
 from pyfirds.categories import DebtSeniority, OptionType, OptionExerciseStyle, DeliveryType, BaseProduct, SubProduct, \
-    FurtherSubProduct, IndexTermUnit, TransactionType, FinalPriceType, FxType, IndexName
-from pyfirds.parse_utils import parse_bool, optional, BaseXmlParsed, parse_datetime, text_or_none
+    FurtherSubProduct, IndexTermUnit, TransactionType, FinalPriceType, FxType, IndexName, StrikePriceType
+from pyfirds.parse import parse_bool, optional, BaseXmlParsed, parse_datetime, text_or_none, parse_date
 
 
 @dataclass
@@ -48,6 +48,9 @@ class StrikePrice(BaseXmlParsed):
     :param pending: Whether the price is currently not available and is pending.
     :param currency: The currency in which the price is denominated.
     """
+
+    price_type: StrikePriceType
+    price: Optional[float]
 
     monetary_value: Optional[float]
     percentage: Optional[float]
@@ -258,7 +261,8 @@ class TechnicalAttributes(BaseXmlParsed):
         for the published data.
     """
     relevant_competent_authority: str
-    publication_period: PublicationPeriod
+    # publication_period does not appear in TermntdRcrd, so is optional. But should appear in ReferenceData classes.
+    publication_period: Optional[PublicationPeriod]
     relevant_trading_venue: str
 
     @classmethod
@@ -271,7 +275,7 @@ class TechnicalAttributes(BaseXmlParsed):
         nsmap = elem.nsmap
         return TechnicalAttributes(
             relevant_competent_authority=elem.find("RlvntCmptntAuthrty", nsmap).text,
-            publication_period=PublicationPeriod.from_xml(elem.find("PblctnPrd", nsmap)),
+            publication_period=optional(elem.find("PblctnPrd", nsmap), PublicationPeriod),
             relevant_trading_venue=elem.find("RlvntTradgVn", nsmap).text
         )
 
@@ -291,7 +295,7 @@ class DebtAttributes(BaseXmlParsed):
     :param seniority: The seniority of the financial instrument (senior, mezzanine, subordinated or junior).
     """
     total_issued_amount: float
-    maturity_date: Optional[datetime]
+    maturity_date: Optional[date]
     nominal_currency: str
     nominal_value_per_unit: float
     interest_rate: InterestRate
@@ -303,7 +307,7 @@ class DebtAttributes(BaseXmlParsed):
         issued_amount_elem = elem.find("TtlIssdNmnlAmt", nsmap)
         return DebtAttributes(
             total_issued_amount=float(issued_amount_elem.text),
-            maturity_date=parse_datetime(elem.find("MtrtyDt", nsmap), optional=True),
+            maturity_date=parse_date(elem.find("MtrtyDt", nsmap), optional=True),
             nominal_currency=issued_amount_elem.attrib["Ccy"],
             nominal_value_per_unit=float(elem.find("NmnlValPerUnit", nsmap).text),
             interest_rate=InterestRate.from_xml(elem.find("IntrstRate", nsmap)),
@@ -624,7 +628,7 @@ class ReferenceData(BaseXmlParsed):
     fisn: str  # TODO: FISN class? https://www.iso.org/obp/ui/#iso:std:iso:18774:ed-1:v1:en
     trading_venue_attrs: TradingVenueAttributes
     notional_currency: str  # TODO: currency code class? https://en.wikipedia.org/wiki/ISO_4217
-    technical_attributes: TechnicalAttributes
+    technical_attributes: Optional[TechnicalAttributes]
     debt_attributes: Optional[DebtAttributes]
     derivative_attributes: Optional[DerivativeAttributes]
 
@@ -681,3 +685,4 @@ class ModifiedRecord(ReferenceData):
 class TerminatedRecord(ReferenceData):
     """Reference data for a financial instrument that has ceased being traded on a trading venue. Supports all the same
     properties and methods as :class:`ReferenceData`."""
+    pass

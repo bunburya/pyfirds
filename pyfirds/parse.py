@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, date
 from enum import Enum
 from typing import Optional, Union, Callable, Type, TypeVar, Generator
 
@@ -78,7 +78,19 @@ def parse_datetime(elem: Optional[etree.Element], optional: bool = False) -> Opt
     value = elem.text
     return parse(value)
 
+def parse_date(elem: Optional[etree.Element], optional: bool = False) -> Optional[date]:
+    """Parse a date string in the FIRDS data to a date object.
 
+    :param elem: XML element which contains the text value to parse, in ISO 8601 date format as used in FIRDS.
+    :param optional: If True and `elem` is None, return None. Useful where the data is optional in FIRDS.
+    """
+    if elem is None:
+        if optional:
+            return None
+        else:
+            raise ValueError(f"Received NoneType when parsing non-optional element.")
+    value = elem.text
+    return date.fromisoformat(value)
 
 
 def optional(elem: Optional[etree.Element], cls: Type[X]) -> Optional[X]:
