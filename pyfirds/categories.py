@@ -3,7 +3,7 @@
 from enum import Enum, StrEnum, auto
 
 
-class IndexTermUnit(Enum):
+class IndexTermUnit(StrEnum):
     DAYS = "days"
     WEEK = "week"
     MNTH = "month"

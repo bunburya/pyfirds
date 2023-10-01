@@ -9,7 +9,7 @@ from pyfirds.categories import DebtSeniority, OptionType, OptionExerciseStyle, D
 from pyfirds.parse import parse_bool, optional, BaseXmlParsed, parse_datetime, text_or_none, parse_date
 
 
-@dataclass
+@dataclass(slots=True)
 class IndexTerm(BaseXmlParsed):
     """The term of an index or benchmark.
 
@@ -34,7 +34,7 @@ class IndexTerm(BaseXmlParsed):
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class StrikePrice(BaseXmlParsed):
     """The strike price of a derivative instrument.
 
@@ -87,7 +87,8 @@ class StrikePrice(BaseXmlParsed):
                 currency=text_or_none(no_price_xml.find("Ccy", nsmap))
             )
 
-@dataclass
+
+@dataclass(slots=True)
 class Index(BaseXmlParsed):
     """An index or benchmark rate that is used in the reference data for certain financial instruments.
 
@@ -126,7 +127,7 @@ class Index(BaseXmlParsed):
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class TradingVenueAttributes(BaseXmlParsed):
     """Data relating to the trading or admission to trading of a financial instrument on a trading venue.
 
@@ -169,7 +170,7 @@ class TradingVenueAttributes(BaseXmlParsed):
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class InterestRate(BaseXmlParsed):
     """Data about the interest rate applicable to a debt instrument.
 
@@ -217,7 +218,7 @@ class InterestRate(BaseXmlParsed):
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class PublicationPeriod(BaseXmlParsed):
     """The period for which details on a financial instrument were published.
 
@@ -249,7 +250,7 @@ class PublicationPeriod(BaseXmlParsed):
             )
 
 
-@dataclass
+@dataclass(slots=True)
 class TechnicalAttributes(BaseXmlParsed):
     """The technical attributes of a financial instrument (ie, attributes relating to the submission of details of the
     financial instrument to FIRDS).
@@ -279,7 +280,7 @@ class TechnicalAttributes(BaseXmlParsed):
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class DebtAttributes(BaseXmlParsed):
     """Reference data for bonds or other forms of securitised debt.
 
@@ -314,7 +315,7 @@ class DebtAttributes(BaseXmlParsed):
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class CommodityDerivativeAttributes(BaseXmlParsed):
     """Additional reference data for a commodity derivative instrument.
 
@@ -366,7 +367,7 @@ class CommodityDerivativeAttributes(BaseXmlParsed):
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class InterestRateDerivativeAttributes(BaseXmlParsed):
     """Additional reference data for an interest rate derivative instrument.
 
@@ -409,7 +410,7 @@ class InterestRateDerivativeAttributes(BaseXmlParsed):
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class FxDerivativeAttributes(BaseXmlParsed):
     """Additional reference data for a foreign exchange derivative instrument.
 
@@ -434,7 +435,7 @@ class FxDerivativeAttributes(BaseXmlParsed):
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class UnderlyingSingle:
     """Reference data for a single asset which underlies a derivative instrument.
 
@@ -454,7 +455,7 @@ class UnderlyingSingle:
     issuer_lei: Optional[str]
 
 
-@dataclass
+@dataclass(slots=True)
 class UnderlyingBasket:
     """Reference data for a basket of assets which underlie a derivative instrument.
 
@@ -466,7 +467,7 @@ class UnderlyingBasket:
     issuer_lei: Optional[list[str]]
 
 
-@dataclass
+@dataclass(slots=True)
 class DerivativeUnderlying(BaseXmlParsed):
     """Reference data for the asset underlying a derivative. The underlying may be a single issuer, instrument or index,
     or may be a basket of instruments or issuers. The relevant parameter will be populated and the rest will be None.
@@ -524,7 +525,8 @@ class DerivativeUnderlying(BaseXmlParsed):
             basket=basket
         )
 
-@dataclass
+
+@dataclass(slots=True)
 class DerivativeAttributes(BaseXmlParsed):
     """Reference data for a derivative instrument.
 
@@ -593,7 +595,7 @@ class DerivativeAttributes(BaseXmlParsed):
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class ReferenceData(BaseXmlParsed):
     """A base class for financial instrument reference data.
 

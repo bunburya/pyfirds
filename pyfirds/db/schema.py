@@ -77,6 +77,36 @@ strike_price = Table(
 
 )
 
+commodity_derivative_attributes = Table(
+    "commodity_derivative_attributes",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("base_product", String(4), nullable=False),
+    Column("sub_product", String(4)),
+    Column("further_sub_product", String(4)),
+    Column("transaction_type", String(4)),
+    Column("final_price_type", String(4))
+)
+
+ir_derivative_attributes = Table(
+    "ir_derivative_attributes",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("reference_rate_id", Integer, ForeignKey("index.id"), nullable=False),
+    Column("notional_currency_2", String(3)),
+    Column("fixed_rate_1", Float),
+    Column("fixed_rate_2", Float),
+    Column("floating_rate_2_id", Integer, ForeignKey("index.id"))
+)
+
+fx_derivative_attributes = Table(
+    "fx_derivative_attributes",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("notional_currency_2", String(3), nullable=False),
+    Column("fx_type", String(4), nullable=False)
+)
+
 derivative_attributes = Table(
     "derivative_attributes",
     metadata,
@@ -88,19 +118,22 @@ derivative_attributes = Table(
     Column("option_type", String(4)),
     Column("strike_price_id", Integer, ForeignKey("strike_price.id")),
     Column("option_exercise_style", String(4)),
-    Column("delivery_type", String(4))
+    Column("delivery_type", String(4)),
+    Column("commodity_derivative_attributes_id", Integer, ForeignKey("commodity_derivative_attributes.id")),
+    Column("ir_derivative_attributes_id", Integer, ForeignKey("ir_derivative_attributes.id")),
+    Column("fx_derivative_attributes_id", Integer, ForeignKey("fx_derivative_attributes.id"))
 )
 
 reference_data = Table(
     "reference_data",
     metadata,
-    Column("isin", String(12), primary_key=True),
+    Column("isin", String(12), nullable=False),
     Column("full_name", String(350), nullable=False),
     Column("cfi", String(6), nullable=False),
     Column("is_commodities_derivative", Boolean, nullable=False),
     Column("issuer_lei", String(20), nullable=False),
     Column("fisn", String(15), nullable=False),
-    Column("tv_trading_venue", String(4), primary_key=True),
+    Column("tv_trading_venue", String(4), nullable=False),
     Column("tv_requested_admission", Boolean, nullable=False),
     Column("tv_approval_date", DateTime),
     Column("tv_request_date", DateTime),
@@ -108,6 +141,9 @@ reference_data = Table(
     Column("tv_termination_date", DateTime),
     Column("notional_currency", String(3), nullable=False),
     Column("technical_attributes_id", Integer, ForeignKey("technical_attributes.id")),
-    Column()
+    Column("derivative_attributes_id", Integer, ForeignKey("derivative_attributes.id")),
+    Column("valid_from", DateTime, nullable=False),
+    Column("valid_to", DateTime),
+    UniqueConstraint("isin", "tv_trading_venue", "valid_to")
 
 )

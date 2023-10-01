@@ -2,13 +2,13 @@
 
 - [X] Finish parsing XML into dataclasses
   - [X] Add testing
-  - [ ] iterparse version
-  - [ ] parsing delta files
+  - [X] iterparse version
+  - [X] parsing delta files
 - [ ] Add support for downloading from FCA
   - [ ] Add testing for downloading from FCA
   - [ ] Add testing for parsing FCA data into dataclasses
 - [ ] Add database support with SqlAlchemy
-  - [ ] Schema for reference data
+  - [X] Schema for reference data
   - [ ] DAO/Repo class for interacting with DB
     - [ ] Add instrument
     - [ ] Replace instrument
