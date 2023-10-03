@@ -54,17 +54,6 @@ interest_rate = Table(
     UniqueConstraint("fixed_rate", "benchmark_id", "spread")
 )
 
-debt_attributes = Table(
-    "debt_attributes",
-    metadata,
-    Column("id", Integer, primary_key=True),
-    Column("total_issued_amount", Float, nullable=False),
-    Column("maturity_date", Date),
-    Column("nominal_currency", String(3), nullable=False),
-    Column("nominal_value_per_unit", Float, nullable=False),
-    Column("interest_rate_id", Integer, ForeignKey("interest_rate.id")),
-    Column("seniority", String(4))
-)
 
 strike_price = Table(
     "strike_price",
@@ -75,6 +64,36 @@ strike_price = Table(
     Column("pending", Boolean, nullable=False),
     Column("currency", String(3))
 
+)
+
+underlying_single = Table(
+    "underlying_single",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("isin", String(12)),
+    Column("index_id", Integer, ForeignKey("index.id")),
+    Column("issuer_lei", String(20))
+)
+
+underlying_basket = Table(
+    "underlying_basket",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("isin", String),
+    Column("index_id", Integer, ForeignKey("index.id")),
+    Column("issuer_lei", String)
+)
+
+debt_attributes = Table(
+    "debt_attributes",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("total_issued_amount", Float, nullable=False),
+    Column("maturity_date", Date),
+    Column("nominal_currency", String(3), nullable=False),
+    Column("nominal_value_per_unit", Float, nullable=False),
+    Column("interest_rate_id", Integer, ForeignKey("interest_rate.id")),
+    Column("seniority", String(4))
 )
 
 commodity_derivative_attributes = Table(

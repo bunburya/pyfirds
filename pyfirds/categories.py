@@ -38,20 +38,20 @@ class IndexName(StrEnum):
     FUSW = "Future SWAP"
 
 
-class DebtSeniority(Enum):
+class DebtSeniority(StrEnum):
     SNDB = "senior"
     MZZD = "mezzanine"
     SBOD = "subordinated"
     JUND = "junior"
 
 
-class OptionType(Enum):
+class OptionType(StrEnum):
     PUTO = "put"
     CALL = "call"
     OTHR = "other"
 
 
-class OptionExerciseStyle(Enum):
+class OptionExerciseStyle(StrEnum):
     EURO = "European"
     AMER = "American"
     ASIA = "Asian"
@@ -59,7 +59,7 @@ class OptionExerciseStyle(Enum):
     OTHR = "Other"
 
 
-class DeliveryType(Enum):
+class DeliveryType(StrEnum):
     PHYS = "physical"
     CASH = "cash"
     OPTL = "optional"  # "optional" is kind of a guess as to what word is being abbreviated
@@ -67,7 +67,7 @@ class DeliveryType(Enum):
 
 # Classification of commodity and emission allowances derivatives
 # https://ec.europa.eu/finance/securities/docs/isd/mifid/rts/160714-rts-23-annex_en.pdf
-class BaseProduct(Enum):
+class BaseProduct(StrEnum):
     AGRI = "Agricultural"
     NRGY = "Energy"
     ENVR = "Environmental"
@@ -87,7 +87,7 @@ class BaseProduct(Enum):
     OTHR = "Other"
 
 
-class SubProduct(Enum):
+class SubProduct(StrEnum):
     # AGRI
     GROS = "Grains and Oil Seeds"
     SOFT = "Softs"
@@ -149,7 +149,7 @@ class SubProduct(Enum):
     NDLV = "Non-deliverable"
 
 
-class FurtherSubProduct(Enum):
+class FurtherSubProduct(StrEnum):
     # GROS
     FWHT = "Feed Wheat"
     SOYB = "Soybeans"
@@ -244,7 +244,7 @@ class FurtherSubProduct(Enum):
     OTHR = "Other"
 
 
-class TransactionType(Enum):
+class TransactionType(StrEnum):
     FUTR = "Futures"
     OPTN = "Options"
     TAPO = "TAPOS"
@@ -257,7 +257,7 @@ class TransactionType(Enum):
     OTHR = "Other"
 
 
-class FinalPriceType(Enum):
+class FinalPriceType(StrEnum):
     ARGM = "Argus/McCloskey"
     BLTC = "Baltic"
     EXOF = "Exchange"
@@ -267,7 +267,7 @@ class FinalPriceType(Enum):
     OTHR = "Other"
 
 
-class FxType(Enum):
+class FxType(StrEnum):
     FXCR = "FX Cross Rates"
     FXEM = "FX Emerging Markets"
     FXMJ = "FX Majors"

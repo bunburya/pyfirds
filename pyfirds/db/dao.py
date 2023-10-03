@@ -1,28 +1,29 @@
 import logging
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Any, Callable, Optional
 
 from sqlalchemy import Engine, insert, select, Connection, Column, Table
 
 from pyfirds.db.schema import publication_period, technical_attributes, index_term, index, interest_rate, \
-    debt_attributes, strike_price, commodity_derivative_attributes, ir_derivative_attributes
+    debt_attributes, strike_price, commodity_derivative_attributes, ir_derivative_attributes, fx_derivative_attributes, \
+    derivative_attributes, underlying_single, underlying_basket, reference_data
 from pyfirds.model import ReferenceData, PublicationPeriod, TechnicalAttributes, IndexTerm, Index, InterestRate, \
-    DebtAttributes, StrikePrice, CommodityDerivativeAttributes, InterestRateDerivativeAttributes
+    DebtAttributes, StrikePrice, CommodityDerivativeAttributes, InterestRateDerivativeAttributes, \
+    FxDerivativeAttributes, DerivativeAttributes, UnderlyingSingle, UnderlyingBasket
 
 logger = logging.getLogger(__name__)
 
 
 class AbstractFirdsDao(ABC):
 
-    def __init__(self, engine: Engine):
-        self.engine = engine
-
     @abstractmethod
-    def add_reference_data(self, data: ReferenceData, commit: bool = False) -> int:
+    def add_reference_data(self, data: ReferenceData, valid_from: datetime, valid_to: Optional[datetime] = None) -> int:
         """Add reference data for a financial instrument to the database.
 
         :param data: The data to add to the database.
-        :param commit: Whether to commit the data to the database immediately after adding.
+        :param valid_from: The date from which the entry is valid.
+        :param valid_to: The date until which the entry is valid.
         :return: The primary key (rowid) of the added row in the database.
         """
         raise NotImplementedError
@@ -37,8 +38,32 @@ class AbstractFirdsDao(ABC):
 
 class FirdsDao(AbstractFirdsDao):
 
-    def add_reference_data(self, data: ReferenceData, commit: bool = False) -> int:
-        raise NotImplementedError
+    def __init__(self, engine: Engine):
+        self.engine = engine
+
+    def add_reference_data(self, data: ReferenceData, valid_from: datetime, valid_to: Optional[datetime] = None) -> int:
+
+        with self.engine.connect() as conn:
+            stmt = insert(reference_data).values(
+                isin=data.isin,
+                full_name=data.full_name,
+                cfi=data.cfi,
+                is_commodities_derivative=data.is_commodities_derivative,
+                issuer_lei=data.issuer_lei,
+                fisn=data.fisn,
+                tv_trading_venue=data.trading_venue_attrs.trading_venue,
+                tv_requested_admission=data.trading_venue_attrs.requested_admission,
+                tv_approval_date=data.trading_venue_attrs.approval_date,
+                tv_request_date=data.trading_venue_attrs.request_date,
+                tv_admission_or_first_trade_date=data.trading_venue_attrs.admission_or_first_trade_date,
+                tv_termination_date=data.trading_venue_attrs.termination_date,
+                notional_currency=data.notional_currency,
+                technical_attributes_id=self._add_tech_attrs(data.technical_attributes, conn),
+                derivative_attributes_id=self._add_deriv_attrs(data.derivative_attributes, conn),
+                valid_from=valid_from,
+                valid_to=valid_to
+            )
+            return conn.execute(stmt).inserted_primary_key[0]
 
     def _add_publication_period(self, data: PublicationPeriod, conn: Connection) -> int:
         """Add a :class:`PublicationPeriod` to the database and return its id."""
@@ -147,6 +172,34 @@ class FirdsDao(AbstractFirdsDao):
         )
         return conn.execute(stmt).inserted_primary_key[0]
 
+    def _add_strike_price(self, data: StrikePrice, conn: Connection) -> int:
+        """Add :class:`StrikePrice` to the database and return the row id."""
+
+        stmt = insert(strike_price).values(
+            type=data.price_type.name,
+            price=data.price,
+            pending=data.pending,
+            currency=data.currency
+        )
+        return conn.execute(stmt).inserted_primary_key[0]
+
+    def _add_underlying_single(self, data: UnderlyingSingle, conn: Connection) -> int:
+        """Add :class:`UnderlyingSingle` to the database and return the row id."""
+        stmt = insert(underlying_single).values(
+            isin=data.isin,
+            index_id=self._add_index(data.index, conn),
+            issuer_lei=data.issuer_lei
+        )
+        return conn.execute(stmt).inserted_primary_key[0]
+
+    def _add_underlying_basket(self, data: UnderlyingBasket, conn: Connection) -> int:
+        """Add :class:`UnderlyingBasket` to the database and return the row id."""
+        stmt = insert(underlying_basket).values(
+            isin=''.join(data.isin),
+            issuer_lei=''.join(data.issuer_lei)
+        )
+        return conn.execute(stmt).inserted_primary_key[0]
+
     def _add_debt_attrs(self, data: DebtAttributes, conn: Connection) -> int:
         """Add :class:`DebtAttributes` to the database and return the row id."""
         stmt = insert(debt_attributes).values(
@@ -159,25 +212,14 @@ class FirdsDao(AbstractFirdsDao):
         )
         return conn.execute(stmt).inserted_primary_key[0]
 
-    def _add_strike_price(self, data: StrikePrice, conn: Connection) -> int:
-        """Add :class:`StrikePrice` to the database and return the row id."""
-
-        stmt = insert(strike_price).values(
-            type=data.price_type,
-            price=data.price,
-            pending=data.pending,
-            currency=data.currency
-        )
-        return conn.execute(stmt).inserted_primary_key[0]
-
     def _add_commodity_deriv_attrs(self, data: CommodityDerivativeAttributes, conn: Connection) -> int:
         """Add :class:`CommodityDerivativeAttributes` to the database and return the row id."""
 
         stmt = insert(commodity_derivative_attributes).values(
             base_product=data.base_product,
             sub_product=data.sub_product,
-            transaction_type=data.transaction_type,
-            final_price_type=data.final_price_type
+            transaction_type=data.transaction_type.name,
+            final_price_type=data.final_price_type.name
         )
         return conn.execute(stmt).inserted_primary_key[0]
 
@@ -193,10 +235,28 @@ class FirdsDao(AbstractFirdsDao):
         )
         return conn.execute(stmt).inserted_primary_key[0]
 
+    def _add_fx_deriv_attrs(self, data: FxDerivativeAttributes, conn: Connection) -> int:
+        """Add :class:`FxDerivativeAttributes` to the database and return the row id."""
 
-"""    Column("reference_rate_id", Integer, ForeignKey("index.id"), nullable=False),
-    Column("notional_currency_2", String(3)),
-    Column("fixed_rate_1", Float),
-    Column("fixed_rate_2", Float),
-    Column("floating_rate_2_id", Integer, ForeignKey("index.id"))
-"""
+        stmt = insert(fx_derivative_attributes).values(
+            notional_currency_2=data.notional_currency_2,
+            fx_type=data.fx_type.name
+        )
+        return conn.execute(stmt).inserted_primary_key[0]
+
+    def _add_deriv_attrs(self, data: DerivativeAttributes, conn: Connection) -> int:
+        """Add :class:`DerivativeAttributes` to the database and return the row id."""
+        stmt = insert(derivative_attributes).values(
+            expiry_date=data.expiry_date,
+            price_multiplier=data.price_multiplier,
+            underlying_single_id=self._add_underlying_single(data.underlying.single, conn),
+            underlying_basket_id=self._add_underlying_basket(data.underlying.basket, conn),
+            option_type=data.option_type.name,
+            strike_price_id=self._add_strike_price(data.strike_price, conn),
+            option_exercise_style=data.option_exercise_style.name,
+            delivery_type=data.delivery_type.name,
+            commodity_derivative_attributes_id=self._add_commodity_deriv_attrs(data.commodity_attributes, conn),
+            ir_derivative_attributes_id=self._add_ir_deriv_attrs(data.ir_attributes, conn),
+            fx_derivative_attributes_id=self._add_fx_deriv_attrs(data.fx_attributes, conn)
+        )
+        return conn.execute(stmt).inserted_primary_key[0]
