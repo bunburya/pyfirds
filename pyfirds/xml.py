@@ -7,12 +7,14 @@ from dateutil.parser import parse
 from lxml import etree
 from lxml.etree import QName
 
+
 class BaseXmlParsed(ABC):
-    """A base class for objects which are parsed from an XML element."""
+    """A base class for objects which can be parsed from an XML element."""
 
     @classmethod
     @abstractmethod
     def from_xml(cls, elem: etree.Element) -> 'BaseXmlParsed':
+        """Create an instance of the class from an appropriate XML element."""
         raise NotImplementedError
 
 
@@ -22,7 +24,8 @@ X = TypeVar("X", bound=BaseXmlParsed)
 
 def text_or_none(
         elem: Optional[etree.Element],
-        wrapper: Optional[Union[Callable[[str], T], Type[Enum]]] = None) -> Optional[Union[T, Enum, str]]:
+        wrapper: Optional[Union[Callable[[str], T], Type[Enum]]] = None
+) -> Optional[Union[T, Enum, str]]:
     """A convenience function that takes an XML element or None, and returns the element's text if it exists or None
     otherwise.
 
@@ -78,6 +81,7 @@ def parse_datetime(elem: Optional[etree.Element], optional: bool = False) -> Opt
     value = elem.text
     return parse(value)
 
+
 def parse_date(elem: Optional[etree.Element], optional: bool = False) -> Optional[date]:
     """Parse a date string in the FIRDS data to a date object.
 
@@ -107,8 +111,9 @@ def iterparse(
     """Parse an XML file iteratively, creating and yielding a :class:`ReferenceData` (or subclass) object from each
     relevant node, and deleting nodes as we finish with them, to preserve memory.
     :param file: Path to the XML file to parse.
-    :param tag_localname_to_cls: A dict mapping each XML tag name (after the namespace bit) to the class to be generated from it
-        (which should be a subclass of :class:`BaseXmlParsed` or otherwise have an appropriate `from_xml` class method).
+    :param tag_localname_to_cls: A dict mapping each XML tag name (after the namespace bit) to the class to be generated
+        from it (which should be a subclass of :class:`BaseXmlParsed` or otherwise have an appropriate `from_xml` class
+        method).
     :return: A dict specifying the number of XML elements of each given tag encountered.
     """
 
@@ -126,6 +131,7 @@ def iterparse(
         count[localname] += 1
         yield obj
     return count
+
 
 def ref_data(file: str) -> list[etree.Element]:
     tree = etree.parse(file)

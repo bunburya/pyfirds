@@ -12,8 +12,8 @@ publication_period = Table(
     "publication_period",
     metadata,
     Column("id", Integer, primary_key=True),
-    Column("from_date", DateTime, nullable=False),
-    Column("to_date", DateTime)
+    Column("from_date", Date, nullable=False),
+    Column("to_date", Date)
 )
 
 technical_attributes = Table(
@@ -146,6 +146,7 @@ derivative_attributes = Table(
 reference_data = Table(
     "reference_data",
     metadata,
+    Column("id", Integer, primary_key=True),
     Column("isin", String(12), nullable=False),
     Column("full_name", String(350), nullable=False),
     Column("cfi", String(6), nullable=False),
@@ -161,8 +162,8 @@ reference_data = Table(
     Column("notional_currency", String(3), nullable=False),
     Column("technical_attributes_id", Integer, ForeignKey("technical_attributes.id")),
     Column("derivative_attributes_id", Integer, ForeignKey("derivative_attributes.id")),
-    Column("valid_from", DateTime, nullable=False),
-    Column("valid_to", DateTime),
+    Column("valid_from", Date, nullable=False),
+    Column("valid_to", Date),
     UniqueConstraint("isin", "tv_trading_venue", "valid_to")
 
 )

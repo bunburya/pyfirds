@@ -4,7 +4,7 @@ from typing import Iterable, Callable, Type
 from lxml import etree
 
 from pyfirds.model import ReferenceData, NewRecord, ModifiedRecord, TerminatedRecord
-from pyfirds.parse import X, iterparse
+from pyfirds.xml import X, iterparse
 from test.common import TEST_DATA_DIR, FIRDS_DIR, verify_types
 
 FIRDS_DATA = os.path.join(TEST_DATA_DIR, "firds_data")

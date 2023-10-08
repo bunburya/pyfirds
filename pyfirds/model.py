@@ -3,14 +3,16 @@ from datetime import datetime, date
 from typing import Optional, Union
 
 from lxml import etree
+from sqlalchemy import Row
 
 from pyfirds.categories import DebtSeniority, OptionType, OptionExerciseStyle, DeliveryType, BaseProduct, SubProduct, \
     FurtherSubProduct, IndexTermUnit, TransactionType, FinalPriceType, FxType, IndexName, StrikePriceType
-from pyfirds.parse import parse_bool, optional, BaseXmlParsed, parse_datetime, text_or_none, parse_date
+from pyfirds.xml import parse_bool, optional, parse_datetime, text_or_none, parse_date, BaseXmlParsed
+from pyfirds.db import BaseRowParsed
 
 
 @dataclass(slots=True)
-class IndexTerm(BaseXmlParsed):
+class IndexTerm(BaseXmlParsed, BaseRowParsed):
     """The term of an index or benchmark.
 
     :param number: The number of weeks, months, etc (as determined by `unit`).
@@ -33,9 +35,17 @@ class IndexTerm(BaseXmlParsed):
             unit=IndexTermUnit[elem.find("Unit", nsmap).text]
         )
 
+    @classmethod
+    def from_row(cls, row: Optional[Row]) -> Optional['IndexTerm']:
+        """Construct a :class:`IndexTerm` object from a :class:`Row` object.
+
+        :param row: The row containing the data. Should confirm to the schema of the ``index_term`` table.
+        """
+        return IndexTerm(number=row.number, unit=IndexTermUnit[row.unit])
+
 
 @dataclass(slots=True)
-class StrikePrice(BaseXmlParsed):
+class StrikePrice(BaseXmlParsed, BaseRowParsed):
     """The strike price of a derivative instrument.
 
     :param price_type: How the price is expressed (as a monetary value, percentage, yield or basis points).
@@ -86,6 +96,19 @@ class StrikePrice(BaseXmlParsed):
                 pending=no_price_xml.find("Pdg", nsmap).text == "PNDG",
                 currency=text_or_none(no_price_xml.find("Ccy", nsmap))
             )
+
+    @classmethod
+    def from_row(cls, row: Optional[Row]) -> Optional['StrikePrice']:
+        """Construct a :class:`StrikePrice` object from a :class:`Row` object.
+
+        :param row: The row containing the data. Should confirm to the schema of the ``strike_price`` table.
+        """
+        return StrikePrice(
+            price_type=StrikePriceType[row.type],
+            price=row.price,
+            pending=row.pending,
+            currency=row.currency
+        )
 
 
 @dataclass(slots=True)

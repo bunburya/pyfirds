@@ -11,7 +11,7 @@ pytest = "*"
 lxml = "*"
 pytest-xdist = {extras = ["psutil"], version = "*"}
 types-lxml = "*"
-sqlalchemy = ">=2.0.0"
+sqlalchemy = "*"
 sphinx = "*"
 
 [dev-packages]
