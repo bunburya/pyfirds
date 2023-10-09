@@ -3,8 +3,9 @@ from abc import ABC, abstractmethod
 from datetime import datetime, date
 from typing import Any, Optional
 
-from sqlalchemy import Engine, insert, select, Connection, Table
+from sqlalchemy import Engine, insert, select, Connection, Table, Row
 
+from pyfirds.categories import IndexTermUnit, IndexName, StrikePriceType, DebtSeniority
 from pyfirds.db.schema import publication_period, technical_attributes, index_term, index, interest_rate, \
     debt_attributes, strike_price, commodity_derivative_attributes, ir_derivative_attributes, fx_derivative_attributes, \
     derivative_attributes, underlying_single, underlying_basket, reference_data
@@ -13,6 +14,12 @@ from pyfirds.model import ReferenceData, PublicationPeriod, TechnicalAttributes,
     FxDerivativeAttributes, DerivativeAttributes, UnderlyingSingle, UnderlyingBasket
 
 logger = logging.getLogger(__name__)
+
+TABLES = {
+    PublicationPeriod: publication_period,
+    IndexTerm: index_term,
+
+}
 
 
 class AbstractFirdsDao(ABC):
@@ -35,8 +42,8 @@ class AbstractFirdsDao(ABC):
         """
         raise NotImplementedError
 
-    #@abstractmethod
-    #def search(self, *args, **kwargs) -> list[ReferenceData]:
+    # @abstractmethod
+    # def search(self, *args, **kwargs) -> list[ReferenceData]:
     #    """Search the database for reference data matching the provided query parameters and return a list of matching
     #    :class:`ReferenceData` objects.
     #    """
@@ -95,7 +102,7 @@ class FirdsDao(AbstractFirdsDao):
         )
         return conn.execute(stmt).inserted_primary_key[0]
 
-    def _search_ids(self, table: Table, match: dict[str, Any], conn: Connection) -> list[int]:
+    def search_for_ids(self, table: Table, match: dict[str, Any], conn: Connection) -> list[int]:
         """Search for all rows matching certain criteria.
 
         :param table: The table to search.
@@ -106,22 +113,26 @@ class FirdsDao(AbstractFirdsDao):
         results = conn.execute(stmt).all()
         return [r.id for r in results]
 
-    def _search_id(self, table: Table, match: dict[str, Any], conn: Connection) -> Optional[int]:
-        """Like `_search_ids`, but only returns the row id for the first matching row, or None if no matching row is
-        found.
+    def search_for_id(self, table: Table, match: dict[str, Any], conn: Connection) -> Optional[int]:
+        """Like :meth:`FirdsDao.search_for_id`, but only returns the row id for the first matching row, or None if no
+        matching row is found.
         """
-        ids = self._search_ids(table, match, conn)
+        ids = self.search_for_ids(table, match, conn)
         if not ids:
             return None
         if (c := len(ids)) > 1:
             logger.warning(f"Found {c} matching rows in table `{table}` for query `{match}`.")
         return ids[0]
 
-    def _add_index_term(self, data: Optional[IndexTerm], conn: Connection) -> Optional[int]:
+    def get_row_by_id(self, table: Table, id: int, conn: Connection) -> Row:
+        """Get the given row from the given table."""
+        return conn.execute(select(table).where(id=id)).first()
+
+    def add_index_term(self, data: Optional[IndexTerm], conn: Connection) -> Optional[int]:
         """Add an :class:`IndexTerm` to the database (if not already present) and return the row id."""
         if data is None:
             return None
-        existing = self._search_id(index_term, {"number": data.number, "unit": data.unit}, conn)
+        existing = self.search_for_id(index_term, {"number": data.number, "unit": data.unit}, conn)
         if existing is not None:
             return existing
         stmt = insert(index_term).values(
@@ -130,7 +141,15 @@ class FirdsDao(AbstractFirdsDao):
         )
         return conn.execute(stmt).inserted_primary_key[0]
 
-    def _add_index(self, data: Optional[Index], conn: Connection) -> Optional[int]:
+    def get_index_term_from_row(self, row: Row) -> IndexTerm:
+        """Create an :class:`IndexTerm` object from an appropriate SQL row."""
+        return IndexTerm(number=row.number, unit=IndexTermUnit[row.unit])
+
+    def get_index_term_from_id(self, id: int, conn: Connection) -> IndexTerm:
+        """Create an :class:`IndexTerm` object from the id of an appropriate SQL row."""
+        return self.get_index_term_from_row(self.get_row_by_id(index_term, id, conn))
+
+    def add_index(self, data: Optional[Index], conn: Connection) -> Optional[int]:
         """Add an :class:`Index` to the database (if not already present) and return the row id.
 
         If ``data`` is None, do nothing and return None.
@@ -141,8 +160,9 @@ class FirdsDao(AbstractFirdsDao):
         if data.term is None:
             existing_term_id = None
         else:
-            existing_term_id = self._search_id(index_term, {"number": data.term.number, "unit": data.term.unit}, conn)
-        existing = self._search_id(index, {"name": data.name, "isin": data.isin, "term_id": existing_term_id}, conn)
+            existing_term_id = self.search_for_id(index_term, {"number": data.term.number, "unit": data.term.unit},
+                                                  conn)
+        existing = self.search_for_id(index, {"name": data.name, "isin": data.isin, "term_id": existing_term_id}, conn)
         if existing is not None:
             return existing
 
@@ -150,7 +170,7 @@ class FirdsDao(AbstractFirdsDao):
         if existing_term_id is not None:
             term_id = existing_term_id
         else:
-            term_id = self._add_index_term(data.term, conn)
+            term_id = self.add_index_term(data.term, conn)
 
         stmt = insert(index).values(
             name=data.name,
@@ -159,16 +179,28 @@ class FirdsDao(AbstractFirdsDao):
         )
         return conn.execute(stmt).inserted_primary_key[0]
 
-    def _add_interest_rate(self, data: Optional[InterestRate], conn: Connection) -> Optional[int]:
+    def get_index_from_row(self, row: Row, conn: Connection) -> Index:
+        """Create an :class:`Index` object from an appropriate SQL row."""
+        return Index(
+            name=IndexName[row.name],
+            isin=row.isin,
+            term=self.get_index_term_from_id(row.term_id, conn)
+        )
+
+    def get_index_from_id(self, id: int, conn: Connection) -> Index:
+        """Create an :class:`Index` object from the id of an appropriate SQL row."""
+        return self.get_index_from_row(self.get_row_by_id(index, id, conn), conn)
+
+    def add_interest_rate(self, data: Optional[InterestRate], conn: Connection) -> Optional[int]:
         """Add an :class:`InterestRate` to the database (if not already present) and return the row id."""
         if data is None:
             return None
-        existing_benchmark_id = self._search_id(
+        existing_benchmark_id = self.search_for_id(
             index,
             {
                 "name": data.benchmark.name,
                 "isin": data.benchmark.isin,
-                "term_id": self._search_id(
+                "term_id": self.search_for_id(
                     index_term,
                     {"number": data.benchmark.term.number, "unit": data.benchmark.term.unit},
                     conn
@@ -176,7 +208,7 @@ class FirdsDao(AbstractFirdsDao):
             },
             conn
         )
-        existing = self._search_id(
+        existing = self.search_for_id(
             interest_rate,
             {
                 "fixed_rate": data.fixed_rate,
@@ -192,7 +224,7 @@ class FirdsDao(AbstractFirdsDao):
         if existing_benchmark_id is not None:
             benchmark_id = existing_benchmark_id
         else:
-            benchmark_id = self._add_index(data.benchmark, conn)
+            benchmark_id = self.add_index(data.benchmark, conn)
 
         stmt = insert(index).values(
             fixed_rate=data.fixed_rate,
@@ -201,7 +233,19 @@ class FirdsDao(AbstractFirdsDao):
         )
         return conn.execute(stmt).inserted_primary_key[0]
 
-    def _add_strike_price(self, data: Optional[StrikePrice], conn: Connection) -> Optional[int]:
+    def get_interest_rate_from_row(self, row: Row, conn: Connection) -> InterestRate:
+        """Create an :class:`InterestRate` object from an appropriate SQL row."""
+        return InterestRate(
+            fixed_rate=row.fixed_rate,
+            benchmark=self.get_index_from_id(row.benchmark_id, conn),
+            spread=row.spread
+        )
+
+    def get_interest_rate_from_id(self, id: int, conn: Connection) -> InterestRate:
+        """Create an :class:`InterestRate` object from the id of an appropriate SQL row."""
+        return self.get_interest_rate_from_row(self.get_row_by_id(interest_rate, id, conn), conn)
+
+    def add_strike_price(self, data: Optional[StrikePrice], conn: Connection) -> Optional[int]:
         """Add :class:`StrikePrice` to the database and return the row id."""
         if data is None:
             return None
@@ -213,7 +257,20 @@ class FirdsDao(AbstractFirdsDao):
         )
         return conn.execute(stmt).inserted_primary_key[0]
 
-    def _add_underlying_single(self, data: Optional[UnderlyingSingle], conn: Connection) -> Optional[int]:
+    def get_strike_price_from_row(self, row: Row) -> StrikePrice:
+        """Create an :class:`InterestRate` object from an appropriate SQL row."""
+        return StrikePrice(
+            price_type=StrikePriceType[row.type],
+            price=row.price,
+            pending=row.pending,
+            currency=row.currency
+        )
+
+    def get_strike_price_from_id(self, id: int, conn: Connection) -> StrikePrice:
+        """Create an :class:`InterestRate` object from the id of an appropriate SQL row."""
+        return self.get_strike_price_from_row(self.get_row_by_id(strike_price, id, conn))
+
+    def add_underlying_single(self, data: Optional[UnderlyingSingle], conn: Connection) -> Optional[int]:
         """Add :class:`UnderlyingSingle` to the database and return the row id.
 
         If ``data`` is None, do nothing and return None.
@@ -222,12 +279,24 @@ class FirdsDao(AbstractFirdsDao):
             return None
         stmt = insert(underlying_single).values(
             isin=data.isin,
-            index_id=self._add_index(data.index, conn),
+            index_id=self.add_index(data.index, conn),
             issuer_lei=data.issuer_lei
         )
         return conn.execute(stmt).inserted_primary_key[0]
 
-    def _add_underlying_basket(self, data: Optional[UnderlyingBasket], conn: Connection) -> Optional[int]:
+    def get_underlying_single_from_row(self, row: Row, conn: Connection) -> UnderlyingSingle:
+        """Create an :class:`UnderlyingSingle` object from an appropriate SQL row."""
+        return UnderlyingSingle(
+            isin=row.isin,
+            index=self.get_index_from_id(row.index_id, conn),
+            issuer_lei=row.issuer_lei
+        )
+
+    def get_underlying_single_from_id(self, id: int, conn: Connection) -> UnderlyingSingle:
+        """Create an :class:`UnderlyingSingle` object from the id of an appropriate SQL row."""
+        return self.get_underlying_single_from_row(self.get_row_by_id(underlying_single, id, conn), conn)
+
+    def add_underlying_basket(self, data: Optional[UnderlyingBasket], conn: Connection) -> Optional[int]:
         """Add :class:`UnderlyingBasket` to the database and return the row id.
 
         If ``data`` is None, do nothing and return None.
@@ -240,7 +309,18 @@ class FirdsDao(AbstractFirdsDao):
         )
         return conn.execute(stmt).inserted_primary_key[0]
 
-    def _add_debt_attrs(self, data: Optional[DebtAttributes], conn: Connection) -> Optional[int]:
+    def get_underlying_basket_from_row(self, row: Row) -> UnderlyingBasket:
+        """Create an :class:`UnderlyingBasket` object from an appropriate SQL row."""
+        return UnderlyingBasket(
+            isin=row.isin,
+            issuer_lei=row.issuer_lei
+        )
+
+    def get_underlying_basket_from_id(self, id: int, conn: Connection) -> UnderlyingBasket:
+        """Create an :class:`UnderlyingBasket` object from the id of an appropriate SQL row."""
+        return self.get_underlying_basket_from_row(self.get_row_by_id(underlying_basket, id, conn))
+
+    def add_debt_attrs(self, data: Optional[DebtAttributes], conn: Connection) -> Optional[int]:
         """Add :class:`DebtAttributes` to the database and return the row id."""
         if data is None:
             return None
@@ -249,10 +329,25 @@ class FirdsDao(AbstractFirdsDao):
             maturity_date=data.maturity_date,
             nominal_currency=data.nominal_currency,
             nominal_value_per_unit=data.nominal_value_per_unit,
-            interest_rate_id=self._add_interest_rate(data.interest_rate, conn),
-            seniority=data.seniority
+            interest_rate_id=self.add_interest_rate(data.interest_rate, conn),
+            seniority=data.seniority.name
         )
         return conn.execute(stmt).inserted_primary_key[0]
+
+    def get_debt_attrs_from_row(self, row: Row, conn: Connection) -> DebtAttributes:
+        """Create a :class:`DebtAttributes` object from an appropriate SQL row."""
+        return DebtAttributes(
+            total_issued_amount=row.total_issued_amount,
+            maturity_date=row.maturity_date,
+            nominal_currency=row.nominal_currency,
+            nominal_value_per_unit=row.nominal_value_per_unit,
+            interest_rate=self.get_interest_rate_from_id(row.interest_rate_id, conn),
+            seniority=DebtSeniority[row.seniority]
+        )
+
+    def get_debt_attrs_from_id(self, id: int, conn: Connection) -> DebtAttributes:
+        """Create a :class:`DebtAttributes` object from the id of the appropriate row."""
+        return self.get_debt_attrs_from_row(self.get_row_by_id(debt_attributes, id, conn), conn)
 
     def _add_commodity_deriv_attrs(
             self,
@@ -275,11 +370,11 @@ class FirdsDao(AbstractFirdsDao):
         if data is None:
             return None
         stmt = insert(ir_derivative_attributes).values(
-            reference_rate_id=self._add_index(data.reference_rate, conn),
+            reference_rate_id=self.add_index(data.reference_rate, conn),
             notional_currency_2=data.notional_currency_2,
             fixed_rate_1=data.fixed_rate_1,
             fixed_rate_2=data.fixed_rate_2,
-            floating_rate_2_id=self._add_index(data.floating_rate_2, conn)
+            floating_rate_2_id=self.add_index(data.floating_rate_2, conn)
         )
         return conn.execute(stmt).inserted_primary_key[0]
 
@@ -300,10 +395,10 @@ class FirdsDao(AbstractFirdsDao):
         stmt = insert(derivative_attributes).values(
             expiry_date=data.expiry_date,
             price_multiplier=data.price_multiplier,
-            underlying_single_id=self._add_underlying_single(data.underlying.single, conn) if data.underlying else None,
-            underlying_basket_id=self._add_underlying_basket(data.underlying.basket, conn) if data.underlying else None,
+            underlying_single_id=self.add_underlying_single(data.underlying.single, conn) if data.underlying else None,
+            underlying_basket_id=self.add_underlying_basket(data.underlying.basket, conn) if data.underlying else None,
             option_type=data.option_type.name if data.option_type else None,
-            strike_price_id=self._add_strike_price(data.strike_price, conn),
+            strike_price_id=self.add_strike_price(data.strike_price, conn),
             option_exercise_style=data.option_exercise_style.name if data.option_exercise_style else None,
             delivery_type=data.delivery_type.name if data.delivery_type else None,
             commodity_derivative_attributes_id=self._add_commodity_deriv_attrs(data.commodity_attributes, conn),

@@ -13,6 +13,7 @@ pytest-xdist = {extras = ["psutil"], version = "*"}
 types-lxml = "*"
 sqlalchemy = "*"
 sphinx = "*"
+myst-parser = "*"
 
 [dev-packages]
 

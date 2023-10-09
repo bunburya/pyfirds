@@ -7,12 +7,12 @@ from sqlalchemy import Row
 
 from pyfirds.categories import DebtSeniority, OptionType, OptionExerciseStyle, DeliveryType, BaseProduct, SubProduct, \
     FurtherSubProduct, IndexTermUnit, TransactionType, FinalPriceType, FxType, IndexName, StrikePriceType
-from pyfirds.xml import parse_bool, optional, parse_datetime, text_or_none, parse_date, BaseXmlParsed
-from pyfirds.db import BaseRowParsed
+from pyfirds.xml import parse_bool, optional, parse_datetime, text_or_none, parse_date, XmlParsed
+from pyfirds.db import SqlSerializable
 
 
 @dataclass(slots=True)
-class IndexTerm(BaseXmlParsed, BaseRowParsed):
+class IndexTerm(XmlParsed, SqlSerializable):
     """The term of an index or benchmark.
 
     :param number: The number of weeks, months, etc (as determined by `unit`).
@@ -37,15 +37,11 @@ class IndexTerm(BaseXmlParsed, BaseRowParsed):
 
     @classmethod
     def from_row(cls, row: Optional[Row]) -> Optional['IndexTerm']:
-        """Construct a :class:`IndexTerm` object from a :class:`Row` object.
-
-        :param row: The row containing the data. Should confirm to the schema of the ``index_term`` table.
-        """
         return IndexTerm(number=row.number, unit=IndexTermUnit[row.unit])
 
 
 @dataclass(slots=True)
-class StrikePrice(BaseXmlParsed, BaseRowParsed):
+class StrikePrice(XmlParsed, SqlSerializable):
     """The strike price of a derivative instrument.
 
     :param price_type: How the price is expressed (as a monetary value, percentage, yield or basis points).
@@ -99,10 +95,6 @@ class StrikePrice(BaseXmlParsed, BaseRowParsed):
 
     @classmethod
     def from_row(cls, row: Optional[Row]) -> Optional['StrikePrice']:
-        """Construct a :class:`StrikePrice` object from a :class:`Row` object.
-
-        :param row: The row containing the data. Should confirm to the schema of the ``strike_price`` table.
-        """
         return StrikePrice(
             price_type=StrikePriceType[row.type],
             price=row.price,
@@ -112,7 +104,7 @@ class StrikePrice(BaseXmlParsed, BaseRowParsed):
 
 
 @dataclass(slots=True)
-class Index(BaseXmlParsed):
+class Index(XmlParsed, SqlSerializable):
     """An index or benchmark rate that is used in the reference data for certain financial instruments.
 
     :param name: The name of the index or benchmark. Should either be a :class:`IndexName` object or a 25 character
@@ -149,9 +141,17 @@ class Index(BaseXmlParsed):
             term=optional(elem.find("Term", nsmap), IndexTerm)
         )
 
+    @classmethod
+    def from_row(cls, row: Optional[Row]) -> Optional['Index']:
+        return Index(
+            name=IndexName[row.name],
+            isin=row.isin,
+            term=IndexTerm.from_row()
+        )
+
 
 @dataclass(slots=True)
-class TradingVenueAttributes(BaseXmlParsed):
+class TradingVenueAttributes(XmlParsed):
     """Data relating to the trading or admission to trading of a financial instrument on a trading venue.
 
     :param trading_venue: The Market Identifier Code (ISO 20022) for the trading venue or systemic internaliser. A
@@ -194,7 +194,7 @@ class TradingVenueAttributes(BaseXmlParsed):
 
 
 @dataclass(slots=True)
-class InterestRate(BaseXmlParsed):
+class InterestRate(XmlParsed):
     """Data about the interest rate applicable to a debt instrument.
 
     :param fixed_rate: The interest rate payable on a fixed rate instrument, expressed as a percentage (eg, 7.5 means
@@ -242,7 +242,7 @@ class InterestRate(BaseXmlParsed):
 
 
 @dataclass(slots=True)
-class PublicationPeriod(BaseXmlParsed):
+class PublicationPeriod(XmlParsed):
     """The period for which details on a financial instrument were published.
 
     :param from_date: The date from which details on the financial instrument were published.
@@ -274,7 +274,7 @@ class PublicationPeriod(BaseXmlParsed):
 
 
 @dataclass(slots=True)
-class TechnicalAttributes(BaseXmlParsed):
+class TechnicalAttributes(XmlParsed):
     """The technical attributes of a financial instrument (ie, attributes relating to the submission of details of the
     financial instrument to FIRDS).
 
@@ -304,7 +304,7 @@ class TechnicalAttributes(BaseXmlParsed):
 
 
 @dataclass(slots=True)
-class DebtAttributes(BaseXmlParsed):
+class DebtAttributes(XmlParsed):
     """Reference data for bonds or other forms of securitised debt.
 
     :param total_issued_amount: The total issued nominal amount of the financial instrument. Amount is expressed in the
@@ -339,7 +339,7 @@ class DebtAttributes(BaseXmlParsed):
 
 
 @dataclass(slots=True)
-class CommodityDerivativeAttributes(BaseXmlParsed):
+class CommodityDerivativeAttributes(XmlParsed):
     """Additional reference data for a commodity derivative instrument.
 
     :param base_product: The base product for the underlying asset class.
@@ -391,7 +391,7 @@ class CommodityDerivativeAttributes(BaseXmlParsed):
 
 
 @dataclass(slots=True)
-class InterestRateDerivativeAttributes(BaseXmlParsed):
+class InterestRateDerivativeAttributes(XmlParsed):
     """Additional reference data for an interest rate derivative instrument.
 
     :param reference_rate: The reference rate.
@@ -434,7 +434,7 @@ class InterestRateDerivativeAttributes(BaseXmlParsed):
 
 
 @dataclass(slots=True)
-class FxDerivativeAttributes(BaseXmlParsed):
+class FxDerivativeAttributes(XmlParsed):
     """Additional reference data for a foreign exchange derivative instrument.
 
     :param notional_currency_2: The second currency of the currency pair.
@@ -491,7 +491,7 @@ class UnderlyingBasket:
 
 
 @dataclass(slots=True)
-class DerivativeUnderlying(BaseXmlParsed):
+class DerivativeUnderlying(XmlParsed):
     """Reference data for the asset underlying a derivative. The underlying may be a single issuer, instrument or index,
     or may be a basket of instruments or issuers. The relevant parameter will be populated and the rest will be None.
 
@@ -550,7 +550,7 @@ class DerivativeUnderlying(BaseXmlParsed):
 
 
 @dataclass(slots=True)
-class DerivativeAttributes(BaseXmlParsed):
+class DerivativeAttributes(XmlParsed):
     """Reference data for a derivative instrument.
 
     Note that some other types of instrument can also have derivative-related attributes, eg, some collective investment
@@ -619,7 +619,7 @@ class DerivativeAttributes(BaseXmlParsed):
 
 
 @dataclass(slots=True)
-class ReferenceData(BaseXmlParsed):
+class ReferenceData(XmlParsed):
     """A base class for financial instrument reference data.
 
     :param isin: The International Securities Indentifier Number (ISO 6166) of the financial instrument.

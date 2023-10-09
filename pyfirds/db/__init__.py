@@ -1,15 +1,17 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from sqlalchemy import Row
+from sqlalchemy import Row, Connection, Table
+
+from pyfirds.db.dao import AbstractFirdsDao
 
 
-class BaseRowParsed(ABC):
+class SqlSerializable(ABC):
     """A base class for objects which can be constructed from :class:`sqlalchemy.Row` objects."""
 
     @classmethod
     @abstractmethod
-    def from_row(cls, row: Optional[Row]) -> Optional['BaseRowParsed']:
+    def from_row(cls, row: Optional[Row], dao: AbstractFirdsDao) -> Optional['SqlSerializable']:
         """Create an instance of the class from  an appropriate SQL row. If provided with None rather than a row,
         simply returns None.
         """

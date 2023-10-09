@@ -1,6 +1,10 @@
 from sqlalchemy import Table, MetaData, Column, String, Boolean, DateTime, Integer, ForeignKey, Float, Date, \
     UniqueConstraint
 
+from pyfirds.model import PublicationPeriod, TechnicalAttributes, IndexTerm, Index, InterestRate, StrikePrice, \
+    UnderlyingSingle, UnderlyingBasket, DebtAttributes, CommodityDerivativeAttributes, InterestRateDerivativeAttributes, \
+    FxDerivativeAttributes, DerivativeAttributes, ReferenceData
+
 # TODO: Need to think about structure of database.
 # Reference data is unique by a combination of ISIN, MIC and ValidTo. ValidTo could be NULL so cannot form part of
 # composite primary key. One possible solution is to have a separate table for validity period (with nullable "valid_to"
@@ -13,7 +17,8 @@ publication_period = Table(
     metadata,
     Column("id", Integer, primary_key=True),
     Column("from_date", Date, nullable=False),
-    Column("to_date", Date)
+    Column("to_date", Date),
+    info={"dataclass": PublicationPeriod}
 )
 
 technical_attributes = Table(
@@ -22,7 +27,8 @@ technical_attributes = Table(
     Column("id", Integer, primary_key=True),
     Column("relevant_competent_authority", String(2), nullable=False),
     Column("publication_period_id", Integer, ForeignKey("publication_period.id")),
-    Column("relevant_trading_venue", String(4), nullable=False)
+    Column("relevant_trading_venue", String(4), nullable=False),
+    info={"dataclass": TechnicalAttributes}
 )
 
 index_term = Table(
@@ -31,7 +37,8 @@ index_term = Table(
     Column("id", Integer, primary_key=True),
     Column("number", Integer, nullable=False),
     Column("unit", String, nullable=False),
-    UniqueConstraint("number", "unit")
+    UniqueConstraint("number", "unit"),
+    info={"dataclass": IndexTerm}
 )
 
 index = Table(
@@ -41,7 +48,8 @@ index = Table(
     Column("name", String),
     Column("isin", String(12)),
     Column("term_id", Integer, ForeignKey("index_term.id")),
-    UniqueConstraint("name", "isin", "term_id")
+    UniqueConstraint("name", "isin", "term_id"),
+    info={"dataclass": Index}
 )
 
 interest_rate = Table(
@@ -51,7 +59,8 @@ interest_rate = Table(
     Column("fixed_rate", Float),
     Column("benchmark_id", Integer, ForeignKey("index.id")),
     Column("spread", Integer),
-    UniqueConstraint("fixed_rate", "benchmark_id", "spread")
+    UniqueConstraint("fixed_rate", "benchmark_id", "spread"),
+    info={"dataclass": InterestRate}
 )
 
 
@@ -62,8 +71,8 @@ strike_price = Table(
     Column("type", String(14)),
     Column("price", Float),
     Column("pending", Boolean, nullable=False),
-    Column("currency", String(3))
-
+    Column("currency", String(3)),
+    info={"dataclass": StrikePrice}
 )
 
 underlying_single = Table(
@@ -72,7 +81,8 @@ underlying_single = Table(
     Column("id", Integer, primary_key=True),
     Column("isin", String(12)),
     Column("index_id", Integer, ForeignKey("index.id")),
-    Column("issuer_lei", String(20))
+    Column("issuer_lei", String(20)),
+    info={"dataclass": UnderlyingSingle}
 )
 
 underlying_basket = Table(
@@ -81,7 +91,8 @@ underlying_basket = Table(
     Column("id", Integer, primary_key=True),
     Column("isin", String),
     Column("index_id", Integer, ForeignKey("index.id")),
-    Column("issuer_lei", String)
+    Column("issuer_lei", String),
+    info={"dataclass": UnderlyingBasket}
 )
 
 debt_attributes = Table(
@@ -93,7 +104,8 @@ debt_attributes = Table(
     Column("nominal_currency", String(3), nullable=False),
     Column("nominal_value_per_unit", Float, nullable=False),
     Column("interest_rate_id", Integer, ForeignKey("interest_rate.id")),
-    Column("seniority", String(4))
+    Column("seniority", String(4)),
+    info={"dataclass": DebtAttributes}
 )
 
 commodity_derivative_attributes = Table(
@@ -104,7 +116,8 @@ commodity_derivative_attributes = Table(
     Column("sub_product", String(4)),
     Column("further_sub_product", String(4)),
     Column("transaction_type", String(4)),
-    Column("final_price_type", String(4))
+    Column("final_price_type", String(4)),
+    info={"database": CommodityDerivativeAttributes}
 )
 
 ir_derivative_attributes = Table(
@@ -115,7 +128,8 @@ ir_derivative_attributes = Table(
     Column("notional_currency_2", String(3)),
     Column("fixed_rate_1", Float),
     Column("fixed_rate_2", Float),
-    Column("floating_rate_2_id", Integer, ForeignKey("index.id"))
+    Column("floating_rate_2_id", Integer, ForeignKey("index.id")),
+    info={"database": InterestRateDerivativeAttributes}
 )
 
 fx_derivative_attributes = Table(
@@ -123,7 +137,8 @@ fx_derivative_attributes = Table(
     metadata,
     Column("id", Integer, primary_key=True),
     Column("notional_currency_2", String(3), nullable=False),
-    Column("fx_type", String(4), nullable=False)
+    Column("fx_type", String(4), nullable=False),
+    info={"database": FxDerivativeAttributes}
 )
 
 derivative_attributes = Table(
@@ -140,7 +155,8 @@ derivative_attributes = Table(
     Column("delivery_type", String(4)),
     Column("commodity_derivative_attributes_id", Integer, ForeignKey("commodity_derivative_attributes.id")),
     Column("ir_derivative_attributes_id", Integer, ForeignKey("ir_derivative_attributes.id")),
-    Column("fx_derivative_attributes_id", Integer, ForeignKey("fx_derivative_attributes.id"))
+    Column("fx_derivative_attributes_id", Integer, ForeignKey("fx_derivative_attributes.id")),
+    info={"database": DerivativeAttributes}
 )
 
 reference_data = Table(
@@ -164,6 +180,6 @@ reference_data = Table(
     Column("derivative_attributes_id", Integer, ForeignKey("derivative_attributes.id")),
     Column("valid_from", Date, nullable=False),
     Column("valid_to", Date),
-    UniqueConstraint("isin", "tv_trading_venue", "valid_to")
-
+    UniqueConstraint("isin", "tv_trading_venue", "valid_to"),
+    info={"database": ReferenceData}
 )

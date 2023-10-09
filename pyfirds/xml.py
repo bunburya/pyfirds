@@ -8,18 +8,18 @@ from lxml import etree
 from lxml.etree import QName
 
 
-class BaseXmlParsed(ABC):
+class XmlParsed(ABC):
     """A base class for objects which can be parsed from an XML element."""
 
     @classmethod
     @abstractmethod
-    def from_xml(cls, elem: etree.Element) -> 'BaseXmlParsed':
+    def from_xml(cls, elem: etree.Element) -> 'XmlParsed':
         """Create an instance of the class from an appropriate XML element."""
         raise NotImplementedError
 
 
 T = TypeVar("T")
-X = TypeVar("X", bound=BaseXmlParsed)
+X = TypeVar("X", bound=XmlParsed)
 
 
 def text_or_none(
