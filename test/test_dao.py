@@ -4,20 +4,23 @@ from datetime import date
 
 from sqlalchemy import create_engine
 
-from common import get_fulins, FIRDS_DIR, TEST_RUN_BASE_DIR
+from common import get_fulins, FIRDS_DIR, TEST_RUN_BASE_DIR, TEST_DATA_DIR
 from pyfirds.db.dao import FirdsDao
 from pyfirds.db.schema import metadata
 from pyfirds.model import ReferenceData
 from pyfirds.xml import iterparse
 
-DB_FILE = os.path.join(TEST_RUN_BASE_DIR, "test.db")
-if os.path.exists(DB_FILE):
-    os.remove(DB_FILE)
+INPUT_DB_FILE = os.path.join(TEST_DATA_DIR, "test.db")
+assert os.path.exists(INPUT_DB_FILE)
+
+OUTPUT_DB_FILE = os.path.join(TEST_RUN_BASE_DIR, "test.db")
+if os.path.exists(OUTPUT_DB_FILE):
+    os.remove(OUTPUT_DB_FILE)
 
 def test_01_build_database():
     """Test building a database from FULINS files."""
     fulins_20210320 = get_fulins(file_date=date(2021, 3, 20))
-    engine = create_engine(f"sqlite:///{DB_FILE}")
+    engine = create_engine(f"sqlite:///{OUTPUT_DB_FILE}")
     metadata.create_all(engine)
     dao = FirdsDao(engine)
     last_row_id = 0
@@ -33,3 +36,7 @@ def test_01_build_database():
                     conn.commit()
         conn.commit()
 
+def test_02_read_database():
+    """Test constructing objects from an existing database."""
+    engine = create_engine(f"sqlite:///{OUTPUT_DB_FILE}")
+    dao = FirdsDao(engine)

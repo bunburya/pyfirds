@@ -1,25 +1,24 @@
+from __future__ import annotations
+
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime, date
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING, Generator
 
 from sqlalchemy import Engine, insert, select, Connection, Table, Row
 
-from pyfirds.categories import IndexTermUnit, IndexName, StrikePriceType, DebtSeniority
+from pyfirds.categories import IndexTermUnit, IndexName, StrikePriceType, DebtSeniority, TransactionType, \
+    FinalPriceType, BaseProduct, SubProduct, FurtherSubProduct, FxType, OptionType, OptionExerciseStyle, DeliveryType
 from pyfirds.db.schema import publication_period, technical_attributes, index_term, index, interest_rate, \
     debt_attributes, strike_price, commodity_derivative_attributes, ir_derivative_attributes, fx_derivative_attributes, \
     derivative_attributes, underlying_single, underlying_basket, reference_data
-from pyfirds.model import ReferenceData, PublicationPeriod, TechnicalAttributes, IndexTerm, Index, InterestRate, \
-    DebtAttributes, StrikePrice, CommodityDerivativeAttributes, InterestRateDerivativeAttributes, \
-    FxDerivativeAttributes, DerivativeAttributes, UnderlyingSingle, UnderlyingBasket
+
+if TYPE_CHECKING:
+    from pyfirds.model import ReferenceData, PublicationPeriod, TechnicalAttributes, IndexTerm, Index, InterestRate, \
+        DebtAttributes, StrikePrice, CommodityDerivativeAttributes, InterestRateDerivativeAttributes, \
+        FxDerivativeAttributes, DerivativeAttributes, UnderlyingSingle, UnderlyingBasket, DerivativeUnderlying
 
 logger = logging.getLogger(__name__)
-
-TABLES = {
-    PublicationPeriod: publication_period,
-    IndexTerm: index_term,
-
-}
 
 
 class AbstractFirdsDao(ABC):
@@ -49,58 +48,16 @@ class AbstractFirdsDao(ABC):
     #    """
     #    raise NotImplementedError
 
+    @abstractmethod
+    def iter_reference_data(self) -> Generator[ReferenceData, None, None]:
+        """Iterate through all rows in the reference data table."""
+        raise NotImplementedError
+
 
 class FirdsDao(AbstractFirdsDao):
 
     def __init__(self, engine: Engine):
         self.engine = engine
-
-    def add_reference_data(
-            self,
-            data: ReferenceData,
-            conn: Connection,
-            valid_from: date,
-            valid_to: Optional[date] = None,
-            commit: bool = False
-    ) -> int:
-
-        stmt = insert(reference_data).values(
-            isin=data.isin,
-            full_name=data.full_name,
-            cfi=data.cfi,
-            is_commodities_derivative=data.is_commodities_derivative,
-            issuer_lei=data.issuer_lei,
-            fisn=data.fisn,
-            tv_trading_venue=data.trading_venue_attrs.trading_venue,
-            tv_requested_admission=data.trading_venue_attrs.requested_admission,
-            tv_approval_date=data.trading_venue_attrs.approval_date,
-            tv_request_date=data.trading_venue_attrs.request_date,
-            tv_admission_or_first_trade_date=data.trading_venue_attrs.admission_or_first_trade_date,
-            tv_termination_date=data.trading_venue_attrs.termination_date,
-            notional_currency=data.notional_currency,
-            technical_attributes_id=self._add_tech_attrs(data.technical_attributes, conn),
-            derivative_attributes_id=self._add_deriv_attrs(data.derivative_attributes, conn),
-            valid_from=valid_from,
-            valid_to=valid_to
-        )
-        result = conn.execute(stmt)
-        if commit:
-            conn.commit()
-        return result.inserted_primary_key[0]
-
-    def _add_publication_period(self, data: PublicationPeriod, conn: Connection) -> int:
-        """Add a :class:`PublicationPeriod` to the database and return its id."""
-        stmt = insert(publication_period).values(from_date=data.from_date, to_date=data.to_date)
-        return conn.execute(stmt).inserted_primary_key[0]
-
-    def _add_tech_attrs(self, data: TechnicalAttributes, conn: Connection) -> int:
-        """Add :class:`TechnicalAttributes` to the database and return its id."""
-        stmt = insert(technical_attributes).values(
-            relevant_competent_authority=data.relevant_competent_authority,
-            publication_period_id=self._add_publication_period(data.publication_period, conn),
-            relevant_trading_venue=data.relevant_trading_venue
-        )
-        return conn.execute(stmt).inserted_primary_key[0]
 
     def search_for_ids(self, table: Table, match: dict[str, Any], conn: Connection) -> list[int]:
         """Search for all rows matching certain criteria.
@@ -128,11 +85,85 @@ class FirdsDao(AbstractFirdsDao):
         """Get the given row from the given table."""
         return conn.execute(select(table).where(id=id)).first()
 
+    def add_reference_data(
+            self,
+            data: ReferenceData,
+            conn: Connection,
+            valid_from: date,
+            valid_to: Optional[date] = None,
+            commit: bool = False
+    ) -> int:
+
+        stmt = insert(reference_data).values(
+            isin=data.isin,
+            full_name=data.full_name,
+            cfi=data.cfi,
+            is_commodities_derivative=data.is_commodities_derivative,
+            issuer_lei=data.issuer_lei,
+            fisn=data.fisn,
+            tv_trading_venue=data.trading_venue_attrs.trading_venue,
+            tv_requested_admission=data.trading_venue_attrs.requested_admission,
+            tv_approval_date=data.trading_venue_attrs.approval_date,
+            tv_request_date=data.trading_venue_attrs.request_date,
+            tv_admission_or_first_trade_date=data.trading_venue_attrs.admission_or_first_trade_date,
+            tv_termination_date=data.trading_venue_attrs.termination_date,
+            notional_currency=data.notional_currency,
+            technical_attributes_id=self.add_tech_attrs(data.technical_attributes, conn),
+            derivative_attributes_id=self.add_deriv_attrs(data.derivative_attributes, conn),
+            valid_from=valid_from,
+            valid_to=valid_to
+        )
+        result = conn.execute(stmt)
+        if commit:
+            conn.commit()
+        return result.inserted_primary_key[0]
+
+    def add_publication_period(self, data: PublicationPeriod, conn: Connection) -> int:
+        """Add a :class:`PublicationPeriod` to the database and return its id."""
+        stmt = insert(publication_period).values(from_date=data.from_date, to_date=data.to_date)
+        return conn.execute(stmt).inserted_primary_key[0]
+
+    def get_publication_period_from_row(self, row: Row) -> PublicationPeriod:
+        """Create a :class:`PublicationPeriod` object from an appropriate SQL row."""
+        return PublicationPeriod(from_date=row.from_date, to_date=row.to_date)
+
+    def get_publication_period_from_id(self, id: Optional[int], conn: Connection) -> Optional[PublicationPeriod]:
+        """Create a :class:`PublicationPeriod` object from an appropriate SQL row."""
+        if id is None:
+            return None
+        else:
+            return self.get_publication_period_from_row(self.get_row_by_id(publication_period, id, conn))
+
+    def add_tech_attrs(self, data: TechnicalAttributes, conn: Connection) -> int:
+        """Add :class:`TechnicalAttributes` to the database and return its id."""
+        stmt = insert(technical_attributes).values(
+            relevant_competent_authority=data.relevant_competent_authority,
+            publication_period_id=self.add_publication_period(data.publication_period, conn),
+            relevant_trading_venue=data.relevant_trading_venue
+        )
+        return conn.execute(stmt).inserted_primary_key[0]
+
+    def get_tech_attrs_from_row(self, row: Row, conn: Connection) -> TechnicalAttributes:
+        """Create a :class:`TechnicalAttributes` object from an appropriate SQL row."""
+        return TechnicalAttributes(
+            relevant_competent_authority=row.relevant_competent_authority,
+            publication_period=self.get_publication_period_from_id(row.publication_period_id, conn),
+            relevant_trading_venue=row.relevant_trading_venue
+        )
+
+    def get_tech_attrs_from_id(self, id: Optional[int], conn: Connection) -> Optional[TechnicalAttributes]:
+        """Create a :class:`TechnicalAttributes` object from an appropriate SQL row."""
+        if id is None:
+            return None
+        else:
+            return self.get_tech_attrs_from_row(self.get_row_by_id(technical_attributes, id, conn), conn)
+
+
     def add_index_term(self, data: Optional[IndexTerm], conn: Connection) -> Optional[int]:
         """Add an :class:`IndexTerm` to the database (if not already present) and return the row id."""
         if data is None:
             return None
-        existing = self.search_for_id(index_term, {"number": data.number, "unit": data.unit}, conn)
+        existing = self.search_for_id(index_term, {"number": data.number, "unit": data.unit.name}, conn)
         if existing is not None:
             return existing
         stmt = insert(index_term).values(
@@ -145,9 +176,12 @@ class FirdsDao(AbstractFirdsDao):
         """Create an :class:`IndexTerm` object from an appropriate SQL row."""
         return IndexTerm(number=row.number, unit=IndexTermUnit[row.unit])
 
-    def get_index_term_from_id(self, id: int, conn: Connection) -> IndexTerm:
+    def get_index_term_from_id(self, id: Optional[int], conn: Connection) -> Optional[IndexTerm]:
         """Create an :class:`IndexTerm` object from the id of an appropriate SQL row."""
-        return self.get_index_term_from_row(self.get_row_by_id(index_term, id, conn))
+        if id is None:
+            return None
+        else:
+            return self.get_index_term_from_row(self.get_row_by_id(index_term, id, conn))
 
     def add_index(self, data: Optional[Index], conn: Connection) -> Optional[int]:
         """Add an :class:`Index` to the database (if not already present) and return the row id.
@@ -160,7 +194,7 @@ class FirdsDao(AbstractFirdsDao):
         if data.term is None:
             existing_term_id = None
         else:
-            existing_term_id = self.search_for_id(index_term, {"number": data.term.number, "unit": data.term.unit},
+            existing_term_id = self.search_for_id(index_term, {"number": data.term.number, "unit": data.term.unit.name},
                                                   conn)
         existing = self.search_for_id(index, {"name": data.name, "isin": data.isin, "term_id": existing_term_id}, conn)
         if existing is not None:
@@ -187,9 +221,12 @@ class FirdsDao(AbstractFirdsDao):
             term=self.get_index_term_from_id(row.term_id, conn)
         )
 
-    def get_index_from_id(self, id: int, conn: Connection) -> Index:
+    def get_index_from_id(self, id: Optional[int], conn: Connection) -> Optional[Index]:
         """Create an :class:`Index` object from the id of an appropriate SQL row."""
-        return self.get_index_from_row(self.get_row_by_id(index, id, conn), conn)
+        if id is None:
+            return None
+        else:
+            return self.get_index_from_row(self.get_row_by_id(index, id, conn), conn)
 
     def add_interest_rate(self, data: Optional[InterestRate], conn: Connection) -> Optional[int]:
         """Add an :class:`InterestRate` to the database (if not already present) and return the row id."""
@@ -241,9 +278,12 @@ class FirdsDao(AbstractFirdsDao):
             spread=row.spread
         )
 
-    def get_interest_rate_from_id(self, id: int, conn: Connection) -> InterestRate:
+    def get_interest_rate_from_id(self, id: Optional[int], conn: Connection) -> Optional[InterestRate]:
         """Create an :class:`InterestRate` object from the id of an appropriate SQL row."""
-        return self.get_interest_rate_from_row(self.get_row_by_id(interest_rate, id, conn), conn)
+        if id is None:
+            return None
+        else:
+            return self.get_interest_rate_from_row(self.get_row_by_id(interest_rate, id, conn), conn)
 
     def add_strike_price(self, data: Optional[StrikePrice], conn: Connection) -> Optional[int]:
         """Add :class:`StrikePrice` to the database and return the row id."""
@@ -266,9 +306,12 @@ class FirdsDao(AbstractFirdsDao):
             currency=row.currency
         )
 
-    def get_strike_price_from_id(self, id: int, conn: Connection) -> StrikePrice:
+    def get_strike_price_from_id(self, id: Optional[int], conn: Connection) -> Optional[StrikePrice]:
         """Create an :class:`InterestRate` object from the id of an appropriate SQL row."""
-        return self.get_strike_price_from_row(self.get_row_by_id(strike_price, id, conn))
+        if id is None:
+            return None
+        else:
+            return self.get_strike_price_from_row(self.get_row_by_id(strike_price, id, conn))
 
     def add_underlying_single(self, data: Optional[UnderlyingSingle], conn: Connection) -> Optional[int]:
         """Add :class:`UnderlyingSingle` to the database and return the row id.
@@ -292,9 +335,12 @@ class FirdsDao(AbstractFirdsDao):
             issuer_lei=row.issuer_lei
         )
 
-    def get_underlying_single_from_id(self, id: int, conn: Connection) -> UnderlyingSingle:
+    def get_underlying_single_from_id(self, id: Optional[int], conn: Connection) -> Optional[UnderlyingSingle]:
         """Create an :class:`UnderlyingSingle` object from the id of an appropriate SQL row."""
-        return self.get_underlying_single_from_row(self.get_row_by_id(underlying_single, id, conn), conn)
+        if id is None:
+            return None
+        else:
+            return self.get_underlying_single_from_row(self.get_row_by_id(underlying_single, id, conn), conn)
 
     def add_underlying_basket(self, data: Optional[UnderlyingBasket], conn: Connection) -> Optional[int]:
         """Add :class:`UnderlyingBasket` to the database and return the row id.
@@ -316,9 +362,12 @@ class FirdsDao(AbstractFirdsDao):
             issuer_lei=row.issuer_lei
         )
 
-    def get_underlying_basket_from_id(self, id: int, conn: Connection) -> UnderlyingBasket:
+    def get_underlying_basket_from_id(self, id: Optional[int], conn: Connection) -> Optional[UnderlyingBasket]:
         """Create an :class:`UnderlyingBasket` object from the id of an appropriate SQL row."""
-        return self.get_underlying_basket_from_row(self.get_row_by_id(underlying_basket, id, conn))
+        if id is None:
+            return None
+        else:
+            return self.get_underlying_basket_from_row(self.get_row_by_id(underlying_basket, id, conn))
 
     def add_debt_attrs(self, data: Optional[DebtAttributes], conn: Connection) -> Optional[int]:
         """Add :class:`DebtAttributes` to the database and return the row id."""
@@ -345,11 +394,14 @@ class FirdsDao(AbstractFirdsDao):
             seniority=DebtSeniority[row.seniority]
         )
 
-    def get_debt_attrs_from_id(self, id: int, conn: Connection) -> DebtAttributes:
+    def get_debt_attrs_from_id(self, id: Optional[int], conn: Connection) -> Optional[DebtAttributes]:
         """Create a :class:`DebtAttributes` object from the id of the appropriate row."""
-        return self.get_debt_attrs_from_row(self.get_row_by_id(debt_attributes, id, conn), conn)
+        if id is None:
+            return None
+        else:
+            return self.get_debt_attrs_from_row(self.get_row_by_id(debt_attributes, id, conn), conn)
 
-    def _add_commodity_deriv_attrs(
+    def add_commodity_deriv_attrs(
             self,
             data: Optional[CommodityDerivativeAttributes],
             conn: Connection
@@ -358,14 +410,34 @@ class FirdsDao(AbstractFirdsDao):
         if data is None:
             return None
         stmt = insert(commodity_derivative_attributes).values(
-            base_product=data.base_product,
-            sub_product=data.sub_product,
+            base_product=data.base_product.name,
+            sub_product=data.sub_product.name if data.sub_product else None,
+            further_sub_product=data.further_sub_product.name if data.further_sub_product else None,
             transaction_type=data.transaction_type.name if data.transaction_type else None,
             final_price_type=data.final_price_type.name if data.final_price_type else None
         )
         return conn.execute(stmt).inserted_primary_key[0]
 
-    def _add_ir_deriv_attrs(self, data: Optional[InterestRateDerivativeAttributes], conn: Connection) -> Optional[int]:
+    def get_commodity_attrs_from_row(self, row: Row) -> CommodityDerivativeAttributes:
+        """Create a :class:`CommodityDerivativeAttributes` object from an appropriate SQL row."""
+        return CommodityDerivativeAttributes(
+            base_product=BaseProduct[row.base_product],
+            sub_product=SubProduct[row.sub_product] if row.sub_product else None,
+            further_sub_product=FurtherSubProduct[row.further_sub_product] if row.further_sub_product else None,
+            transaction_type=TransactionType[row.transaction_type] if row.transaction_type else None,
+            final_price_type=FinalPriceType[row.final_price_type] if row.final_price_type else None
+        )
+
+    def get_commodity_attrs_from_id(
+            self, id: Optional[int], conn: Connection
+    ) -> Optional[CommodityDerivativeAttributes]:
+        """Create a :class:`CommodityDerivativeAttributes` object from the id of the appropriate row."""
+        if id is None:
+            return None
+        else:
+            return self.get_commodity_attrs_from_row(self.get_row_by_id(commodity_derivative_attributes, id, conn))
+
+    def add_ir_deriv_attrs(self, data: Optional[InterestRateDerivativeAttributes], conn: Connection) -> Optional[int]:
         """Add :class:`InterestRateDerivativeAttributes` to the database and return the row id."""
         if data is None:
             return None
@@ -378,7 +450,24 @@ class FirdsDao(AbstractFirdsDao):
         )
         return conn.execute(stmt).inserted_primary_key[0]
 
-    def _add_fx_deriv_attrs(self, data: Optional[FxDerivativeAttributes], conn: Connection) -> Optional[int]:
+    def get_ir_attrs_from_row(self, row: Row, conn: Connection) -> InterestRateDerivativeAttributes:
+        """Create a :class:`InterestRateDerivativeAttributes` object from an appropriate SQL row."""
+        return InterestRateDerivativeAttributes(
+            reference_rate=self.get_index_from_id(row.reference_rate_id, conn),
+            notional_currency_2=row.notional_currency_2,
+            fixed_rate_1=row.fixed_rate_1,
+            fixed_rate_2=row.fixed_rate_2,
+            floating_rate_2=self.get_index_from_id(row.floating_rate_2_id, conn)
+        )
+
+    def get_ir_attrs_from_id(self, id: Optional[int], conn: Connection) -> Optional[InterestRateDerivativeAttributes]:
+        """Create a :class:`InterestRateDerivativeAttributes` object from the id of the appropriate row."""
+        if id is None:
+            return None
+        else:
+            return self.get_ir_attrs_from_row(self.get_row_by_id(ir_derivative_attributes, id, conn), conn)
+
+    def add_fx_deriv_attrs(self, data: Optional[FxDerivativeAttributes], conn: Connection) -> Optional[int]:
         """Add :class:`FxDerivativeAttributes` to the database and return the row id."""
         if data is None:
             return None
@@ -388,7 +477,21 @@ class FirdsDao(AbstractFirdsDao):
         )
         return conn.execute(stmt).inserted_primary_key[0]
 
-    def _add_deriv_attrs(self, data: Optional[DerivativeAttributes], conn: Connection) -> Optional[int]:
+    def get_fx_attrs_from_row(self, row: Row) -> FxDerivativeAttributes:
+        """Create a :class:`FxDerivativeAttributes` object from an appropriate SQL row."""
+        return FxDerivativeAttributes(
+            notional_currency_2=row.notional_currency_2,
+            fx_type=FxType[row.fx_type]
+        )
+
+    def get_fx_attrs_from_id(self, id: Optional[int], conn: Connection) -> Optional[FxDerivativeAttributes]:
+        """Create a :class:`FxDerivativeAttributes` object from the id of the appropriate row."""
+        if id is None:
+            return None
+        else:
+            return self.get_fx_attrs_from_row(self.get_row_by_id(fx_derivative_attributes, id, conn))
+
+    def add_deriv_attrs(self, data: Optional[DerivativeAttributes], conn: Connection) -> Optional[int]:
         """Add :class:`DerivativeAttributes` to the database and return the row id."""
         if data is None:
             return None
@@ -401,8 +504,38 @@ class FirdsDao(AbstractFirdsDao):
             strike_price_id=self.add_strike_price(data.strike_price, conn),
             option_exercise_style=data.option_exercise_style.name if data.option_exercise_style else None,
             delivery_type=data.delivery_type.name if data.delivery_type else None,
-            commodity_derivative_attributes_id=self._add_commodity_deriv_attrs(data.commodity_attributes, conn),
-            ir_derivative_attributes_id=self._add_ir_deriv_attrs(data.ir_attributes, conn),
-            fx_derivative_attributes_id=self._add_fx_deriv_attrs(data.fx_attributes, conn)
+            commodity_derivative_attributes_id=self.add_commodity_deriv_attrs(data.commodity_attributes, conn),
+            ir_derivative_attributes_id=self.add_ir_deriv_attrs(data.ir_attributes, conn),
+            fx_derivative_attributes_id=self.add_fx_deriv_attrs(data.fx_attributes, conn)
         )
         return conn.execute(stmt).inserted_primary_key[0]
+
+    def get_deriv_attrs_from_row(self, row: Row, conn: Connection) -> DerivativeAttributes:
+        """Create a :class:`DerivativeAttributes` object from an appropriate SQL row."""
+        return DerivativeAttributes(
+            expiry_date=row.expiry_date,
+            price_multiplier=row.price_multiplier,
+            underlying=DerivativeUnderlying(
+                single=self.get_underlying_single_from_id(row.underlying_single_id, conn),
+                basket=self.get_underlying_basket_from_id(row.underlying_basket_id, conn)
+            ),
+            option_type=OptionType[row.option_type] if row.option_type else None,
+            strike_price=self.get_strike_price_from_id(row.strike_price_id, conn),
+            option_exercise_style=OptionExerciseStyle[row.option_execrise_style] if row.option_exercise_style else None,
+            delivery_type=DeliveryType[row.delivery_type] if row.delivery_type else None,
+            commodity_attributes=self.get_commodity_attrs_from_id(row.commodity_derivative_attributes_id, conn),
+            ir_attributes=self.get_ir_attrs_from_id(row.ir_derivative_attributes_id, conn),
+            fx_attributes=self.get_fx_attrs_from_id(row.fx_derivative_attributes_id, conn)
+        )
+
+    def get_deriv_attrs_from_id(self, id: Optional[int], conn: Connection) -> Optional[DerivativeAttributes]:
+        """Create a :class:`DerivativeAttributes` object from the id of the appropriate row."""
+        if id is None:
+            return None
+        else:
+            return self.get_deriv_attrs_from_row(self.get_row_by_id(derivative_attributes, id, conn), conn)
+
+    def iter_reference_data(self) -> Generator[ReferenceData, None, None]:
+        with self.engine.connect() as conn:
+            for row in conn.execute(select(reference_data)):
+                yield self.get_ref
