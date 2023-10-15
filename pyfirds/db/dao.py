@@ -13,10 +13,10 @@ from pyfirds.db.schema import publication_period, technical_attributes, index_te
     debt_attributes, strike_price, commodity_derivative_attributes, ir_derivative_attributes, fx_derivative_attributes, \
     derivative_attributes, underlying_single, underlying_basket, reference_data
 
-if TYPE_CHECKING:
-    from pyfirds.model import ReferenceData, PublicationPeriod, TechnicalAttributes, IndexTerm, Index, InterestRate, \
-        DebtAttributes, StrikePrice, CommodityDerivativeAttributes, InterestRateDerivativeAttributes, \
-        FxDerivativeAttributes, DerivativeAttributes, UnderlyingSingle, UnderlyingBasket, DerivativeUnderlying
+from pyfirds.model import ReferenceData, PublicationPeriod, TechnicalAttributes, IndexTerm, Index, InterestRate, \
+    DebtAttributes, StrikePrice, CommodityDerivativeAttributes, InterestRateDerivativeAttributes, \
+    FxDerivativeAttributes, DerivativeAttributes, UnderlyingSingle, UnderlyingBasket, DerivativeUnderlying, \
+    TradingVenueAttributes
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,7 @@ class FirdsDao(AbstractFirdsDao):
 
     def get_row_by_id(self, table: Table, id: int, conn: Connection) -> Row:
         """Get the given row from the given table."""
-        return conn.execute(select(table).where(id=id)).first()
+        return conn.execute(select(table).where(table.c.id == id)).first()
 
     def add_reference_data(
             self,
@@ -109,6 +109,7 @@ class FirdsDao(AbstractFirdsDao):
             tv_termination_date=data.trading_venue_attrs.termination_date,
             notional_currency=data.notional_currency,
             technical_attributes_id=self.add_tech_attrs(data.technical_attributes, conn),
+            debt_attributes_id=self.add_debt_attrs(data.debt_attributes, conn),
             derivative_attributes_id=self.add_deriv_attrs(data.derivative_attributes, conn),
             valid_from=valid_from,
             valid_to=valid_to
@@ -117,6 +118,29 @@ class FirdsDao(AbstractFirdsDao):
         if commit:
             conn.commit()
         return result.inserted_primary_key[0]
+
+    def get_reference_data_from_row(self, row: Row, conn: Connection) -> ReferenceData:
+        """Create a :class:`ReferenceData` object from an appropriate SQL row."""
+        return ReferenceData(
+            isin=row.isin,
+            full_name=row.full_name,
+            cfi=row.cfi,
+            is_commodities_derivative=row.is_commodities_derivative,
+            issuer_lei=row.issuer_lei,
+            fisn=row.fisn,
+            trading_venue_attrs=TradingVenueAttributes(
+                trading_venue=row.tv_trading_venue,
+                requested_admission=row.tv_requested_admission,
+                approval_date=row.tv_approval_date,
+                request_date=row.tv_request_date,
+                admission_or_first_trade_date=row.tv_admission_or_first_trade_date,
+                termination_date=row.tv_termination_date
+            ),
+            notional_currency=row.notional_currency,
+            technical_attributes=self.get_tech_attrs_from_id(row.technical_attributes_id, conn),
+            debt_attributes=self.get_debt_attrs_from_id(row.debt_attributes_id, conn),
+            derivative_attributes=self.get_deriv_attrs_from_id(row.derivative_attributes_id, conn)
+        )
 
     def add_publication_period(self, data: PublicationPeriod, conn: Connection) -> int:
         """Add a :class:`PublicationPeriod` to the database and return its id."""
@@ -157,7 +181,6 @@ class FirdsDao(AbstractFirdsDao):
             return None
         else:
             return self.get_tech_attrs_from_row(self.get_row_by_id(technical_attributes, id, conn), conn)
-
 
     def add_index_term(self, data: Optional[IndexTerm], conn: Connection) -> Optional[int]:
         """Add an :class:`IndexTerm` to the database (if not already present) and return the row id."""
@@ -215,8 +238,12 @@ class FirdsDao(AbstractFirdsDao):
 
     def get_index_from_row(self, row: Row, conn: Connection) -> Index:
         """Create an :class:`Index` object from an appropriate SQL row."""
+        try:
+            name = IndexName[row.name]
+        except KeyError:
+            name = row.name
         return Index(
-            name=IndexName[row.name],
+            name=name,
             isin=row.isin,
             term=self.get_index_term_from_id(row.term_id, conn)
         )
@@ -232,19 +259,22 @@ class FirdsDao(AbstractFirdsDao):
         """Add an :class:`InterestRate` to the database (if not already present) and return the row id."""
         if data is None:
             return None
-        existing_benchmark_id = self.search_for_id(
-            index,
-            {
-                "name": data.benchmark.name,
-                "isin": data.benchmark.isin,
-                "term_id": self.search_for_id(
-                    index_term,
-                    {"number": data.benchmark.term.number, "unit": data.benchmark.term.unit},
-                    conn
-                )
-            },
-            conn
-        )
+        if data.benchmark is None:
+            existing_benchmark_id = None
+        else:
+            existing_benchmark_id = self.search_for_id(
+                index,
+                {
+                    "name": data.benchmark.name,
+                    "isin": data.benchmark.isin,
+                    "term_id": self.search_for_id(
+                        index_term,
+                        {"number": data.benchmark.term.number, "unit": data.benchmark.term.unit},
+                        conn
+                    )
+                },
+                conn
+            )
         existing = self.search_for_id(
             interest_rate,
             {
@@ -263,7 +293,7 @@ class FirdsDao(AbstractFirdsDao):
         else:
             benchmark_id = self.add_index(data.benchmark, conn)
 
-        stmt = insert(index).values(
+        stmt = insert(interest_rate).values(
             fixed_rate=data.fixed_rate,
             benchmark_id=benchmark_id,
             spread=data.spread
@@ -379,7 +409,7 @@ class FirdsDao(AbstractFirdsDao):
             nominal_currency=data.nominal_currency,
             nominal_value_per_unit=data.nominal_value_per_unit,
             interest_rate_id=self.add_interest_rate(data.interest_rate, conn),
-            seniority=data.seniority.name
+            seniority=data.seniority.name if data.seniority else None
         )
         return conn.execute(stmt).inserted_primary_key[0]
 
@@ -391,7 +421,7 @@ class FirdsDao(AbstractFirdsDao):
             nominal_currency=row.nominal_currency,
             nominal_value_per_unit=row.nominal_value_per_unit,
             interest_rate=self.get_interest_rate_from_id(row.interest_rate_id, conn),
-            seniority=DebtSeniority[row.seniority]
+            seniority=DebtSeniority[row.seniority] if row.seniority else None
         )
 
     def get_debt_attrs_from_id(self, id: Optional[int], conn: Connection) -> Optional[DebtAttributes]:
@@ -521,7 +551,7 @@ class FirdsDao(AbstractFirdsDao):
             ),
             option_type=OptionType[row.option_type] if row.option_type else None,
             strike_price=self.get_strike_price_from_id(row.strike_price_id, conn),
-            option_exercise_style=OptionExerciseStyle[row.option_execrise_style] if row.option_exercise_style else None,
+            option_exercise_style=OptionExerciseStyle[row.option_exercise_style] if row.option_exercise_style else None,
             delivery_type=DeliveryType[row.delivery_type] if row.delivery_type else None,
             commodity_attributes=self.get_commodity_attrs_from_id(row.commodity_derivative_attributes_id, conn),
             ir_attributes=self.get_ir_attrs_from_id(row.ir_derivative_attributes_id, conn),
@@ -538,4 +568,4 @@ class FirdsDao(AbstractFirdsDao):
     def iter_reference_data(self) -> Generator[ReferenceData, None, None]:
         with self.engine.connect() as conn:
             for row in conn.execute(select(reference_data)):
-                yield self.get_ref
+                yield self.get_reference_data_from_row(row, conn)

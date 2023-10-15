@@ -162,6 +162,7 @@ reference_data = Table(
     Column("tv_termination_date", DateTime),
     Column("notional_currency", String(3), nullable=False),
     Column("technical_attributes_id", Integer, ForeignKey("technical_attributes.id")),
+    Column("debt_attributes_id", Integer, ForeignKey("debt_attributes.id")),
     Column("derivative_attributes_id", Integer, ForeignKey("derivative_attributes.id")),
     Column("valid_from", Date, nullable=False),
     Column("valid_to", Date),

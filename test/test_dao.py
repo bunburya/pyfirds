@@ -4,7 +4,7 @@ from datetime import date
 
 from sqlalchemy import create_engine
 
-from common import get_fulins, FIRDS_DIR, TEST_RUN_BASE_DIR, TEST_DATA_DIR
+from common import get_fulins, FIRDS_DIR, TEST_RUN_BASE_DIR, TEST_DATA_DIR, verify_types
 from pyfirds.db.dao import FirdsDao
 from pyfirds.db.schema import metadata
 from pyfirds.model import ReferenceData
@@ -38,5 +38,7 @@ def test_01_build_database():
 
 def test_02_read_database():
     """Test constructing objects from an existing database."""
-    engine = create_engine(f"sqlite:///{OUTPUT_DB_FILE}")
+    engine = create_engine(f"sqlite:///{INPUT_DB_FILE}")
     dao = FirdsDao(engine)
+    for ref_data in dao.iter_reference_data():
+        verify_types(ref_data, ReferenceData, "ref_data")

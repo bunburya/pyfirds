@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, date
-from typing import Optional, Union
+from typing import Optional, Union, TYPE_CHECKING
 
 from lxml import etree
 from sqlalchemy import Row
@@ -8,11 +8,10 @@ from sqlalchemy import Row
 from pyfirds.categories import DebtSeniority, OptionType, OptionExerciseStyle, DeliveryType, BaseProduct, SubProduct, \
     FurtherSubProduct, IndexTermUnit, TransactionType, FinalPriceType, FxType, IndexName, StrikePriceType
 from pyfirds.xml import parse_bool, optional, parse_datetime, text_or_none, parse_date, XmlParsed
-from pyfirds.db import SqlSerializable
 
 
 @dataclass(slots=True)
-class IndexTerm(XmlParsed, SqlSerializable):
+class IndexTerm(XmlParsed):
     """The term of an index or benchmark.
 
     :param number: The number of weeks, months, etc (as determined by `unit`).
@@ -35,13 +34,8 @@ class IndexTerm(XmlParsed, SqlSerializable):
             unit=IndexTermUnit[elem.find("Unit", nsmap).text]
         )
 
-    @classmethod
-    def from_row(cls, row: Optional[Row]) -> Optional['IndexTerm']:
-        return IndexTerm(number=row.number, unit=IndexTermUnit[row.unit])
-
-
 @dataclass(slots=True)
-class StrikePrice(XmlParsed, SqlSerializable):
+class StrikePrice(XmlParsed):
     """The strike price of a derivative instrument.
 
     :param price_type: How the price is expressed (as a monetary value, percentage, yield or basis points).
@@ -93,18 +87,9 @@ class StrikePrice(XmlParsed, SqlSerializable):
                 currency=text_or_none(no_price_xml.find("Ccy", nsmap))
             )
 
-    @classmethod
-    def from_row(cls, row: Optional[Row]) -> Optional['StrikePrice']:
-        return StrikePrice(
-            price_type=StrikePriceType[row.type],
-            price=row.price,
-            pending=row.pending,
-            currency=row.currency
-        )
-
 
 @dataclass(slots=True)
-class Index(XmlParsed, SqlSerializable):
+class Index(XmlParsed):
     """An index or benchmark rate that is used in the reference data for certain financial instruments.
 
     :param name: The name of the index or benchmark. Should either be a :class:`IndexName` object or a 25 character
@@ -139,14 +124,6 @@ class Index(XmlParsed, SqlSerializable):
             isin=text_or_none(ref_rate_elem.find("ISIN", nsmap)),
             name=name,
             term=optional(elem.find("Term", nsmap), IndexTerm)
-        )
-
-    @classmethod
-    def from_row(cls, row: Optional[Row]) -> Optional['Index']:
-        return Index(
-            name=IndexName[row.name],
-            isin=row.isin,
-            term=IndexTerm.from_row()
         )
 
 
