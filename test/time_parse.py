@@ -2,7 +2,7 @@ import os
 from time import time
 
 from pyfirds.model import ReferenceData, NewRecord, ModifiedRecord, TerminatedRecord
-from pyfirds.xml import iterparse
+from pyfirds.xml_utils import iterparse
 from test.common import firds_files, FIRDS_DIR, verify_types
 
 tags = {

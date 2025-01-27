@@ -7,7 +7,7 @@ from sqlalchemy import Row
 
 from pyfirds.categories import DebtSeniority, OptionType, OptionExerciseStyle, DeliveryType, BaseProduct, SubProduct, \
     FurtherSubProduct, IndexTermUnit, TransactionType, FinalPriceType, FxType, IndexName, StrikePriceType
-from pyfirds.xml import parse_bool, optional, parse_datetime, text_or_none, parse_date, XmlParsed
+from pyfirds.xml_utils import parse_bool, optional, parse_datetime, text_or_none, parse_date, XmlParsed
 
 
 @dataclass(slots=True)

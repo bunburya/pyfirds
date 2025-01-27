@@ -4,16 +4,16 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-requests = "*"
-python-dateutil = "*"
 pysolr = "*"
 pytest = "*"
 lxml = "*"
-pytest-xdist = {extras = ["psutil"], version = "*"}
 types-lxml = "*"
 sqlalchemy = "*"
 sphinx = "*"
 myst-parser = "*"
+pluggy = "*"
+requests = "*"
+python-dateutil = "*"
 
 [dev-packages]
 

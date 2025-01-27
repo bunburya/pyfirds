@@ -3,6 +3,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, date
 from hashlib import file_digest
+from typing import Any
 from zipfile import ZipFile
 
 import requests
@@ -39,7 +40,7 @@ class FirdsDoc:
     timestamp: datetime
 
     @staticmethod
-    def from_dict(d: dict) -> 'FirdsDoc':
+    def from_dict(d: dict[str, Any]) -> 'FirdsDoc':
         return FirdsDoc(
             d['checksum'],
             d['download_link'],
