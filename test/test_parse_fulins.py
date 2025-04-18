@@ -3,7 +3,7 @@ from typing import Iterable
 
 from pyfirds.model import ReferenceData
 from pyfirds.xml_utils import iterparse
-from test.common import firds_files, FIRDS_DIR, verify_types
+from test.common import FIRDS_FILES, FIRDS_DIR, verify_types
 
 
 #def non_iter_parse_files(file_names: Iterable[str], parent_name: str):
@@ -32,45 +32,45 @@ parse_files = iter_parse_files
 
 def test_01_fulins_c():
     """Test parsing full collective investment scheme instrument reference data."""
-    parse_files(filter(lambda f: f.startswith("FULINS_C"), firds_files), "ref_data")
+    parse_files(filter(lambda f: f.startswith("FULINS_C"), FIRDS_FILES), "ref_data")
 
 
 def test_02_fulins_d():
     """Test parsing full debt instrument reference data."""
-    parse_files(filter(lambda f: f.startswith("FULINS_D"), firds_files), "ref_data")
+    parse_files(filter(lambda f: f.startswith("FULINS_D"), FIRDS_FILES), "ref_data")
 
 
 def test_03_fulins_e():
     """Test parsing full equity instrument reference data."""
-    parse_files(filter(lambda f: f.startswith("FULINS_E"), firds_files), "ref_data")
+    parse_files(filter(lambda f: f.startswith("FULINS_E"), FIRDS_FILES), "ref_data")
 
 
 def test_04_fulins_f():
     """Test parsing full futures instrument reference data."""
-    parse_files(filter(lambda f: f.startswith("FULINS_F"), firds_files), "ref_data")
+    parse_files(filter(lambda f: f.startswith("FULINS_F"), FIRDS_FILES), "ref_data")
 
 
 def test_05_fulins_h():
     """Test parsing full non-listed and complex options instrument reference data."""
-    parse_files(filter(lambda f: f.startswith("FULINS_H"), firds_files), "ref_data")
+    parse_files(filter(lambda f: f.startswith("FULINS_H"), FIRDS_FILES), "ref_data")
 
 
 def test_06_fulins_i():
     """Test parsing full spot instrument reference data."""
-    parse_files(filter(lambda f: f.startswith("FULINS_I"), firds_files), "ref_data")
+    parse_files(filter(lambda f: f.startswith("FULINS_I"), FIRDS_FILES), "ref_data")
 
 
 def test_07_fulins_j():
     """Test parsing full forwards instrument reference data."""
-    parse_files(filter(lambda f: f.startswith("FULINS_J"), firds_files), "ref_data")
+    parse_files(filter(lambda f: f.startswith("FULINS_J"), FIRDS_FILES), "ref_data")
 
 
 def test_08_fulins_o():
     """Test parsing full listed options instrument reference data."""
-    parse_files(filter(lambda f: f.startswith("FULINS_O"), firds_files), "ref_data")
+    parse_files(filter(lambda f: f.startswith("FULINS_O"), FIRDS_FILES), "ref_data")
 
 
-r_files = list(filter(lambda f: f.startswith("FULINS_C"), firds_files))
+r_files = list(filter(lambda f: f.startswith("FULINS_C"), FIRDS_FILES))
 
 
 def test_09_fulins_r_1():
@@ -85,4 +85,4 @@ def test_10_fulins_r_2():
 
 def test_11_fulins_s():
     """Test parsing full swap instrument reference data."""
-    parse_files(filter(lambda f: f.startswith("FULINS_S"), firds_files), "ref_data")
+    parse_files(filter(lambda f: f.startswith("FULINS_S"), FIRDS_FILES), "ref_data")

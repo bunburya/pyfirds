@@ -1,14 +1,23 @@
+import logging
 import os
 from dataclasses import fields
 from datetime import datetime, date
 from typing import Any, Type
+
+logger = logging.getLogger(__name__)
 
 TEST_DATA_DIR = os.path.join("test_data")
 TEST_RUN_BASE_DIR = os.path.join(TEST_DATA_DIR, "run")
 TEST_FIRDS_DATA_DIR = os.path.join(TEST_DATA_DIR, "firds_data")
 
 FIRDS_DIR = os.path.join(TEST_DATA_DIR, "firds_data")
-firds_files = os.listdir(FIRDS_DIR)
+try:
+    FIRDS_FILES = os.listdir(FIRDS_DIR)
+except FileNotFoundError as e:
+    logger.critical(f"Could not file FIRDS file directory ({FIRDS_DIR}). This directory should be present and should "
+                    f"contain FIRDS files downloaded from ESMA website to test against.")
+    logger.exception(e)
+    raise e
 
 if not os.path.exists(TEST_RUN_BASE_DIR):
     os.makedirs(TEST_RUN_BASE_DIR)
@@ -53,4 +62,4 @@ def get_fulins(inst_type: str = None, file_date: date = None) -> list[str]:
             return False
         return True
 
-    return list(filter(test, filter(lambda s: s.startswith("FULINS"), firds_files)))
+    return list(filter(test, filter(lambda s: s.startswith("FULINS"), FIRDS_FILES)))

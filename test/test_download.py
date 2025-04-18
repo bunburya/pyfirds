@@ -5,7 +5,7 @@ from datetime import datetime
 
 from lxml import etree
 
-from pyfirds.download import FirdsSearcher, BASE_URL
+from pyfirds.download import EsmaFirdsSearcher, ESMA_BASE_URL
 
 from test.common import get_test_run_dir
 
@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 
-firds = FirdsSearcher(BASE_URL)
+firds = EsmaFirdsSearcher(ESMA_BASE_URL)
 
 search_params_to_checksums = {
     (

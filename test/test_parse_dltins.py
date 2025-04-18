@@ -5,11 +5,7 @@ from lxml import etree
 
 from pyfirds.model import ReferenceData, NewRecord, ModifiedRecord, TerminatedRecord
 from pyfirds.xml_utils import X, iterparse
-from test.common import TEST_DATA_DIR, FIRDS_DIR, verify_types
-
-FIRDS_DATA = os.path.join(TEST_DATA_DIR, "firds_data")
-
-files = os.listdir(FIRDS_DATA)
+from test.common import FIRDS_DIR, FIRDS_FILES, verify_types
 
 
 #def non_iter_parse_files(file_names: Iterable[str], parse_func: Callable[[etree.Element], list[etree.Element]],
@@ -34,7 +30,7 @@ def iter_parse_files(file_names: Iterable[str], tag_name: str, cls: Type[X], par
             verify_types(obj, cls, parent_name)
 
 
-delta_files = list(filter(lambda f: f.startswith('DLTINS'), files))
+delta_files = list(filter(lambda f: f.startswith('DLTINS'), FIRDS_FILES))
 
 
 def test_01_parse_new_records():
