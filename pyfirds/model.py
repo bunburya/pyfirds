@@ -13,13 +13,12 @@ from pyfirds.xml_utils import parse_bool, optional, parse_datetime, text_or_none
 @dataclass(slots=True)
 class IndexTerm(XmlParsed):
     """The term of an index or benchmark.
-
-    :param number: The number of weeks, months, etc (as determined by `unit`).
-    :param unit: The unit of time in which the term is expressed (days, weeks, months or years).
     """
 
     number: int
+    """The number of weeks, months, etc (as determined by `unit`)."""
     unit: IndexTermUnit
+    """The unit of time in which the term is expressed (days, weeks, months or years)."""
 
     @classmethod
     def from_xml(cls, elem: etree.Element) -> 'IndexTerm':
@@ -37,18 +36,17 @@ class IndexTerm(XmlParsed):
 @dataclass(slots=True)
 class StrikePrice(XmlParsed):
     """The strike price of a derivative instrument.
-
-    :param price_type: How the price is expressed (as a monetary value, percentage, yield or basis points).
-        Alternatively identifies if no price is available.
-    :param price: The actual price, expressed according to `price_type`. Will be None if no price is available.
-    :param pending: Whether the price is currently not available and is pending.
-    :param currency: The currency in which the price is denominated (if appropriate).
     """
 
     price_type: StrikePriceType
+    """How the price is expressed (as a monetary value, percentage, yield or basis points). Alternatively identifies if
+    no price is available."""
     price: Optional[float]
+    """The actual price, expressed according to `price_type`. Will be `None` if no price is available."""
     pending: bool
+    """Whether the price is currently not available and is pending."""
     currency: Optional[str]
+    """The currency in which the price is denominated (if appropriate)."""
 
     @classmethod
     def from_xml(cls, elem: etree.Element) -> 'StrikePrice':
@@ -91,15 +89,14 @@ class StrikePrice(XmlParsed):
 @dataclass(slots=True)
 class Index(XmlParsed):
     """An index or benchmark rate that is used in the reference data for certain financial instruments.
-
-    :param name: The name of the index or benchmark. Should either be a :class:`IndexName` object or a 25 character
-        string.
-    :param isin: The ISIN of the index or benchmark.
-    :param term: The term of the index or benchmark.
     """
+
     name: Optional[Union[str, IndexName]]
+    """The name of the index or benchmark. Should either be a :class:`IndexName` object or a 25 character string."""
     isin: Optional[str]
+    """The ISIN of the index or benchmark."""
     term: Optional[IndexTerm]
+    """The term of the index or benchmark."""
 
     @classmethod
     def from_xml(cls, elem: etree.Element) -> 'Index':
@@ -109,6 +106,7 @@ class Index(XmlParsed):
         :param elem: The XML element to parse. The element should be of type `FloatingInterestRate8` as defined in the
             FULINS XSD.
         """
+
         nsmap = elem.nsmap
         ref_rate_elem = elem.find("RefRate", nsmap)
         index_text = text_or_none(ref_rate_elem.find("Indx", nsmap))
@@ -130,27 +128,24 @@ class Index(XmlParsed):
 @dataclass(slots=True)
 class TradingVenueAttributes(XmlParsed):
     """Data relating to the trading or admission to trading of a financial instrument on a trading venue.
-
-    :param trading_venue: The Market Identifier Code (ISO 20022) for the trading venue or systemic internaliser. A
-        segment MIC is used where available; otherwise, an operating MIC is used.
-    :param requested_admission: Whether the issuer has requested or approved the trading or admission to trading of their
-        financial instruments on a trading venue.
-    :param approval_date: Date and time the issuer has approved admission to trading or trading in its financial
-        instruments on a trading venue.
-    :param request_date: Date and time of the request for admission to trading on the trading venue.
-    :param admission_or_first_trade_date: Date and time of the admission to trading on the trading venue or the date and
-        time when the instrument was first traded or an order or quote was first received by the trading venue.
-    :param termination_date: Date and time when the instrument ceases to be traded or admitted to trading on the trading
-        venue.
-
     """
 
     trading_venue: str  # TODO: MIC class? https://www.iso20022.org/market-identifier-codes
+    """The Market Identifier Code (ISO 20022) for the trading venue or systemic internaliser. A segment MIC is used
+    where available; otherwise, an operating MIC is used."""
     requested_admission: bool
+    """Whether the issuer has requested or approved the trading or admission to trading of their financial instruments
+    on a trading venue."""
     approval_date: Optional[datetime]
+    """Date and time the issuer has approved admission to trading or trading in its financial instruments on a trading
+    venue."""
     request_date: Optional[datetime]
+    """Date and time of the request for admission to trading on the trading venue."""
     admission_or_first_trade_date: Optional[datetime]
+    """Date and time of the admission to trading on the trading venue or the date and time when the instrument was first
+    traded or an order or quote was first received by the trading venue."""
     termination_date: Optional[datetime]
+    """Date and time when the instrument ceases to be traded or admitted to trading on the trading venue."""
 
     @classmethod
     def from_xml(cls, elem: etree.Element) -> "TradingVenueAttributes":
@@ -173,16 +168,14 @@ class TradingVenueAttributes(XmlParsed):
 @dataclass(slots=True)
 class InterestRate(XmlParsed):
     """Data about the interest rate applicable to a debt instrument.
-
-    :param fixed_rate: The interest rate payable on a fixed rate instrument, expressed as a percentage (eg, 7.5 means
-        7.5% interest rate).
-    :param benchmark: The benchmark or index of a floating rate instrument.
-    :param spread: Spread of a floating rate instrument, expressed as an integer number of basis points.
     """
 
     fixed_rate: Optional[float]
+    """The interest rate payable on a fixed rate instrument, expressed as a percentage (eg, 7.5 means 7.5% interest rate)."""
     benchmark: Optional[Index]
+    """The benchmark or index of a floating rate instrument."""
     spread: Optional[int]
+    """Spread of a floating rate instrument, expressed as an integer number of basis points."""
 
     def validate(self):
         """Check that either a fixed rate or a floating rate is defined."""
@@ -200,7 +193,7 @@ class InterestRate(XmlParsed):
 
     @classmethod
     def from_xml(cls, elem: etree.Element) -> "InterestRate":
-        """Parse an `IntrstRate` XML element from FIRDS data into a :class:`InterestRate` object.
+        """Parse an `IntrstRate` XML element from FIRDS data into an :class:`InterestRate` object.
 
         :param elem: The XML element to parse. The tag should be
             `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}IntrstRate` or equivalent.
@@ -221,13 +214,12 @@ class InterestRate(XmlParsed):
 @dataclass(slots=True)
 class PublicationPeriod(XmlParsed):
     """The period for which details on a financial instrument were published.
-
-    :param from_date: The date from which details on the financial instrument were published.
-    :param to_date: The date to which details on the financial instrument were published.
     """
 
     from_date: date
+    """The date from which details on the financial instrument were published."""
     to_date: Optional[date]
+    """The date to which details on the financial instrument were published."""
 
     @classmethod
     def from_xml(cls, elem: etree.Element) -> "PublicationPeriod":
@@ -254,16 +246,17 @@ class PublicationPeriod(XmlParsed):
 class TechnicalAttributes(XmlParsed):
     """The technical attributes of a financial instrument (ie, attributes relating to the submission of details of the
     financial instrument to FIRDS).
-
-    :param relevant_competent_authority: The relevant competent authority for the instrument.
-    :param publication_period: The period for which these details on the financial instrument was published.
-    :param relevant_trading_venue: The MIC of the trading venue that reported the record considered as the reference
-        for the published data.
     """
+
     relevant_competent_authority: str
+    """The relevant competent authority for the instrument."""
     # publication_period does not appear in TermntdRcrd, so is optional. But should appear in ReferenceData classes.
     publication_period: Optional[PublicationPeriod]
+    """The period for which these details on the financial instrument was published.
+    NOTE: `publication_period` is optional as it does not appear in :class:`TerminatedRecord` classes, but it should
+    always appear in :class:`ReferenceData` classes."""
     relevant_trading_venue: str
+    """The MIC of the trading venue that reported the record considered as the reference for the published data."""
 
     @classmethod
     def from_xml(cls, elem: etree.Element) -> "TechnicalAttributes":
@@ -283,23 +276,20 @@ class TechnicalAttributes(XmlParsed):
 @dataclass(slots=True)
 class DebtAttributes(XmlParsed):
     """Reference data for bonds or other forms of securitised debt.
-
-    :param total_issued_amount: The total issued nominal amount of the financial instrument. Amount is expressed in the
-        `nominal_currency`.
-    :param maturity_date: The maturity date of the financial instrument. Only applies to debt instruments with defined
-        maturity.
-    :param nominal_currency: The currency of the nominal value.
-    :param nominal_value_per_unit: The nominal value of each traded unit. If not available, the minimum traded amount is
-        included. Amount is expressed in the `nominal_currency`.
-    :param interest_rate: Details of the interest rate applicable to the financial instrument.
-    :param seniority: The seniority of the financial instrument (senior, mezzanine, subordinated or junior).
     """
     total_issued_amount: float
+    """The total issued nominal amount of the financial instrument. Amount is expressed in the `nominal_currency`."""
     maturity_date: Optional[date]
+    """The maturity date of the financial instrument. Only applies to debt instruments with defined maturity."""
     nominal_currency: str
+    """The currency of the nominal value."""
     nominal_value_per_unit: float
+    """The nominal value of each traded unit. If not available, the minimum traded amount is included.
+    Amount is expressed in the `nominal_currency`."""
     interest_rate: InterestRate
+    """Details of the interest rate applicable to the financial instrument."""
     seniority: Optional[DebtSeniority]
+    """The seniority of the financial instrument (senior, mezzanine, subordinated or junior)."""
 
     @classmethod
     def from_xml(cls, elem: etree.Element) -> "DebtAttributes":
@@ -318,18 +308,17 @@ class DebtAttributes(XmlParsed):
 @dataclass(slots=True)
 class CommodityDerivativeAttributes(XmlParsed):
     """Additional reference data for a commodity derivative instrument.
-
-    :param base_product: The base product for the underlying asset class.
-    :param sub_product: The sub-product for the underlying asset class.
-    :param further_sub_product: The further sub-product (ie, sub-sub-product) for the underlying asset class.
-    :param transaction_type: The transaction type as specified by the trading venue.
-    :param final_price_type: The final price type as specified by the trading venue.
     """
     base_product: BaseProduct
+    """The base product for the underlying asset class."""
     sub_product: Optional[SubProduct]
+    """The sub-product for the underlying asset class."""
     further_sub_product: Optional[FurtherSubProduct]
+    """The further sub-product (ie, sub-sub-product) for the underlying asset class."""
     transaction_type: Optional[TransactionType]
+    """The transaction type as specified by the trading venue."""
     final_price_type: Optional[FinalPriceType]
+    """The final price type as specified by the trading venue."""
 
     @classmethod
     def from_xml(cls, elem: etree.Element) -> 'CommodityDerivativeAttributes':
@@ -370,20 +359,18 @@ class CommodityDerivativeAttributes(XmlParsed):
 @dataclass(slots=True)
 class InterestRateDerivativeAttributes(XmlParsed):
     """Additional reference data for an interest rate derivative instrument.
-
-    :param reference_rate: The reference rate.
-    :param notional_currency_2: In the case of multi-currency or cross-currency swaps the currency in which leg 2 of the
-        contract is denominated. For swaptions where the underlying swap is multi-currency, the currency in which leg 2
-        of the swap is denominated.
-    :param fixed_rate_1: The fixed rate of leg 1 of the trade, if applicable. Expressed as a percentage.
-    :param fixed_rate_2: The fixed rate of leg 2 of the trade, if applicable. Expressed as a percentage.
-    :param floating_rate_2: The floating rate of leg 2 of the trade, if applicable.
     """
     reference_rate: Index
+    """The reference rate."""
     notional_currency_2: Optional[str]
+    """In the case of multi-currency or cross-currency swaps the currency in which leg 2 of the contract is denominated.
+    For swaptions where the underlying swap is multi-currency, the currency in which leg 2 of the swap is denominated."""
     fixed_rate_1: Optional[float]
+    """The fixed rate of leg 1 of the trade, if applicable. Expressed as a percentage."""
     fixed_rate_2: Optional[float]
+    """The fixed rate of leg 2 of the trade, if applicable. Expressed as a percentage."""
     floating_rate_2: Optional[Index]
+    """The floating rate of leg 2 of the trade, if applicable."""
 
     @classmethod
     def from_xml(cls, elem: etree.Element) -> "InterestRateDerivativeAttributes":
@@ -413,12 +400,11 @@ class InterestRateDerivativeAttributes(XmlParsed):
 @dataclass(slots=True)
 class FxDerivativeAttributes(XmlParsed):
     """Additional reference data for a foreign exchange derivative instrument.
-
-    :param notional_currency_2: The second currency of the currency pair.
-    :param fx_type: The type of underlying currency.
     """
     notional_currency_2: str
+    """The second currency of the currency pair."""
     fx_type: FxType
+    """The type of underlying currency."""
 
     @classmethod
     def from_xml(cls, elem: etree.Element) -> "FxDerivativeAttributes":
@@ -438,48 +424,45 @@ class FxDerivativeAttributes(XmlParsed):
 @dataclass(slots=True)
 class UnderlyingSingle:
     """Reference data for a single asset which underlies a derivative instrument.
+    """
 
-    :param isin: The ISIN of the underlying financial instrument.
+    isin: Optional[str]
+    """The ISIN of the underlying financial instrument.
         - For ADRs, GDRs and similar instruments, the ISIN code of the financial instrument on which those instruments
         are based. For convertible bonds, the ISIN code of the instrument in which the bond can be converted.
         - For derivatives or other instruments which have an underlying, the underlying instrument ISIN code, when the
         underlying is admitted to trading, or traded on a trading venue. Where the underlying is a stock dividend, then
         the ISIN code of the related share entitling the underlying dividend shall be provided.
-        - For Credit Default Swaps, the ISIN of the reference obligation shall be provided.
-    :param index: The ISIN, or an :class:`Index` object, representing the underlying index.
-    :param issuer_lei: The LEI of the underlying issuer.
-    """
-
-    isin: Optional[str]
+        - For Credit Default Swaps, the ISIN of the reference obligation shall be provided."""
     index: Optional[Union[str, Index]]
+    """The ISIN, or an :class:`Index` object, representing the underlying index."""
     issuer_lei: Optional[str]
+    """The LEI of the underlying issuer."""
 
 
 @dataclass(slots=True)
 class UnderlyingBasket:
     """Reference data for a basket of assets which underlie a derivative instrument.
-
-    :param isin: A list of ISINs of the financial instruments in the basket.
-    :param issuer_lei: A list of LEIs of issuers in the basket.
     """
 
     isin: Optional[list[str]]
+    """A list of ISINs of the financial instruments in the basket."""
     issuer_lei: Optional[list[str]]
+    """A list of LEIs of issuers in the basket."""
 
 
 @dataclass(slots=True)
 class DerivativeUnderlying(XmlParsed):
     """Reference data for the asset underlying a derivative. The underlying may be a single issuer, instrument or index,
     or may be a basket of instruments or issuers. The relevant parameter will be populated and the rest will be None.
-
-    :param single: Data for a single instrument, index or issuer underlying a derivative instrument, or None if the
-        underlying is a basket.
-    :param basket: Data for a basket of instruments or issuers underlying a derivative instrument, or None if the
-        underlying is a single instrument, index or issuer.
     """
 
     single: Optional[UnderlyingSingle]
+    """Data for a single instrument, index or issuer underlying a derivative instrument, or None if the underlying is a
+    basket."""
     basket: Optional[UnderlyingBasket]
+    """Data for a basket of instruments or issuers underlying a derivative instrument, or None if the underlying is a
+    single instrument, index or issuer."""
 
     @classmethod
     def from_xml(cls, elem: [etree.Element]) -> "DerivativeUnderlying":
@@ -532,35 +515,33 @@ class DerivativeAttributes(XmlParsed):
 
     Note that some other types of instrument can also have derivative-related attributes, eg, some collective investment
     scheme (CFI code C) instruments.
-
-    :param expiry_date: Expiry date of the instrument.
-    :param price_multiplier: Number of units of the underlying instrument represented by a single derivative contract.
-        For a future or option on an index, the amount per index point.
-    :param underlying: Description of the underlying asset or basket of assets.
-    :param option_type: If the derivative instrument is an option, whether it is a call or a put or whether it cannot
-        be determined whether it is a call or a put at the time of execution.
-    :param strike_price: Predetermined price at which the holder will have to buy or sell the underlying instrument, or
-        an indication that the price cannot be determined at the time of execution.
-    :param option_exercise_style: Indication of whether the option may be exercised only at a fixed date (European
-        and Asian style), a series of pre-specified dates (Bermudan) or at any time during the life of the contract
-        (American style).
-    :param delivery_type: Whether the financial instrument is cash settled or physically settled or delivery type cannot
-        be determined at time of execution.
-    :param commodity_attributes: If the instrument is a commodity derivative, certain commodity-related attributes.
-    :param ir_attributes: If the instrument is an interest rate derivative, certain IR-related attributes.
-    :param fx_attributes: If the instrument is a foreign exchange derivative, certain FX-related attributes.
     """
 
     expiry_date: Optional[datetime]
+    """Expiry date of the instrument."""
     price_multiplier: Optional[float]
+    """Number of units of the underlying instrument represented by a single derivative contract. For a future or option
+    on an index, the amount per index point."""
     underlying: Optional[DerivativeUnderlying]
+    """Description of the underlying asset or basket of assets."""
     option_type: Optional[OptionType]
+    """If the derivative instrument is an option, whether it is a call or a put or whether it cannot be determined
+    whether it is a call or a put at the time of execution."""
     strike_price: Optional[StrikePrice]
+    """Predetermined price at which the holder will have to buy or sell the underlying instrument, or an indication that
+    the price cannot be determined at the time of execution."""
     option_exercise_style: Optional[OptionExerciseStyle]
+    """Indication of whether the option may be exercised only at a fixed date (European and Asian style), a series of
+    pre-specified dates (Bermudan) or at any time during the life of the contract (American style)."""
     delivery_type: Optional[DeliveryType]
+    """Whether the financial instrument is cash settled or physically settled or delivery type cannot be determined at
+    time of execution."""
     commodity_attributes: Optional[CommodityDerivativeAttributes]
+    """If the instrument is a commodity derivative, certain commodity-related attributes."""
     ir_attributes: Optional[InterestRateDerivativeAttributes]
+    """If the instrument is an interest rate derivative, certain IR-related attributes."""
     fx_attributes: Optional[FxDerivativeAttributes]
+    """If the instrument is a foreign exchange derivative, certain FX-related attributes."""
 
     @classmethod
     def from_xml(cls, elem: etree.Element) -> "DerivativeAttributes":
@@ -598,40 +579,36 @@ class DerivativeAttributes(XmlParsed):
 @dataclass(slots=True)
 class ReferenceData(XmlParsed):
     """A base class for financial instrument reference data.
-
-    :param isin: The International Securities Indentifier Number (ISO 6166) of the financial instrument.
-    :param full_name: The full name of the financial instrument. This should give a good indication of the issuer and
-        the particulars of the instrument.
-    :param cfi: The Classification of Financial Instruments code (ISO 10962) of the financial instrument.
-    :param is_commodities_derivative: Whether the financial instrument falls within the definition of a "commodities
-        derivative" under Article 2(1)(30) of Regulation (EU) No 600/2014.
-    :param issuer_lei: The Legal Entity identifier (ISO 17442) for the issuer. In certain cases, eg derivative
-        instruments issued by the trading venue, this field will be populated with the trading venue operator's LEI.
-    :param fisn: The Financial Instrument Short Name (ISO 18774) for the financial instrument.
-    :param trading_venue_attrs: Data relating to the trading or admission to trading of the financial instrument on a
-        trading venue.
-    :param notional_currency: The currency in which the notional is denominated. For an interest rate or currency
-        derivative contract, this will be the notional currency of leg 1, or the currency 1, of the pair. In the case
-        of swaptions where the underlying swap is single currency, this will be the notional currency of the underlying
-        swap. For swaptions where the underlying is multi-currency, this will be the notional currency of leg 1 of the
-        swap.
-    :param technical_attributes: Technical attributes of the financial instrument.
-    :param debt_attributes: If the instrument is a debt instrument, certain debt-related attributes.
-    :param derivative_attributes: If the instrument is a derivative, certain derivative-related attributes.
-
     """
 
     isin: str  # TODO: ISIN class?
+    """The International Securities Indentifier Number (ISO 6166) of the financial instrument."""
     full_name: str
+    """The full name of the financial instrument. This should give a good indication of the issuer and the particulars
+    of the instrument."""
     cfi: str  # TODO: CFI class? https://en.wikipedia.org/wiki/ISO_10962
+    """The Classification of Financial Instruments code (ISO 10962) of the financial instrument."""
     is_commodities_derivative: bool
+    """Whether the financial instrument falls within the definition of a "commodities derivative" under
+    Article 2(1)(30) of Regulation (EU) No 600/2014."""
     issuer_lei: str  # TODO: LEI class?
+    """The Legal Entity identifier (ISO 17442) for the issuer. In certain cases, eg derivative instruments issued by the
+    trading venue, this field will be populated with the trading venue operator's LEI."""
     fisn: str  # TODO: FISN class? https://www.iso.org/obp/ui/#iso:std:iso:18774:ed-1:v1:en
+    """The Financial Instrument Short Name (ISO 18774) for the financial instrument."""
     trading_venue_attrs: TradingVenueAttributes
+    """Data relating to the trading or admission to trading of the financial instrument on a trading venue."""
     notional_currency: str  # TODO: currency code class? https://en.wikipedia.org/wiki/ISO_4217
+    """The currency in which the notional is denominated. For an interest rate or currency derivative contract, this
+    will be the notional currency of leg 1, or the currency 1, of the pair. In the case of swaptions where the
+    underlying swap is single currency, this will be the notional currency of the underlying swap. For swaptions where
+    the underlying is multi-currency, this will be the notional currency of leg 1 of the swap."""
     technical_attributes: Optional[TechnicalAttributes]
+    """Technical attributes of the financial instrument."""
     debt_attributes: Optional[DebtAttributes]
+    """If the instrument is a debt instrument, certain debt-related attributes."""
     derivative_attributes: Optional[DerivativeAttributes]
+    """If the instrument is a derivative, certain derivative-related attributes."""
 
     @property
     def unique_id(self) -> str:

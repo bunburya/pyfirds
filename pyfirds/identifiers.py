@@ -14,18 +14,16 @@ class BadIsinError(BadIdentifierException): pass
 
 @dataclass
 class LEI:
-    """A data class representing a Legal Entity Identifier.
-
-    :param code: The LEI code as a string.
-    :param lou_identifier: The first four digits of the LEI, which identify the local operating unit (LOU) for the LEI.
-    :param entity_identifier: The fifth to eighteenth digits of the LEI, which identify the entity itself.
-    :param check_digits: The last two digits of the LEI, which are check digits.
-    """
+    """A Legal Entity Identifier."""
 
     code: str
+    """The LEI code as a string."""
     lou_identifier: str = None
+    """The first four digits of the LEI, which identify the local operating unit (LOU) for the LEI."""
     entity_identifier: str = None
+    """The fifth to eighteenth digits of the LEI, which identify the entity itself."""
     check_digits: str = None
+    """The last two digits of the LEI, which are check digits."""
 
     def __post_init__(self):
         self.lou_identifier = self.code[:4]
@@ -60,10 +58,16 @@ class LEI:
 
 @dataclass
 class ISIN:
+    """An International Securities Identification Number."""
+
     code: str
+    """The ISIN as a string."""
     country_code: str = None
+    """The first two digits of the ISIN, which form a country code."""
     instrument_identifier: str = None
+    """Third to eleventh digits of the ISIN, which form an alphanumeric security identifier."""
     check_digit: int = None
+    """Last digit of the ISIN, which is a check digit."""
 
     def __post_init__(self):
         self.country_code = self.code[:2]

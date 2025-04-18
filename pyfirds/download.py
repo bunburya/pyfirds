@@ -1,16 +1,18 @@
+import abc
 import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime, date
 from hashlib import file_digest
-from typing import Any
+from typing import Any, Optional
 from zipfile import ZipFile
 
 import requests
 from dateutil import tz
 from pysolr import Solr
 
-BASE_URL = "https://registers.esma.europa.eu/solr/esma_registers_firds_files/"
+ESMA_BASE_URL = "https://registers.esma.europa.eu/solr/esma_registers_firds_files/"
+FCA_BASE_URL = "https://api.data.fca.org.uk/fca_data_firds_files"
 
 logger = logging.getLogger(__name__)
 
@@ -22,32 +24,30 @@ class BadChecksumError(Exception):
 
 @dataclass
 class FirdsDoc:
-    """A dataclass representing a single document reference returned by searching the FIRDS database.
+    """A dataclass representing a single document reference returned by searching a FIRDS database (ESMA or FCA)."""
 
-    :param checksum: MD5 checksum for the file.
-    :param download_link: A URL to download the file from.
-    :param file_id: An ID for the file.
-    :param file_name: The name of the file.
-    :param file_type: The type of the file.
-    :param timestamp: The timestamp of the document.
-    """
-
-    checksum: str
     download_link: str
+    """A URL to download the file from."""
     file_id: str
+    """An ID for the file."""
     file_name: str
+    """The name of the file."""
     file_type: str
+    """The type of the file (FULINS/DLTINS/FULCAN)."""
     timestamp: datetime
+    """The timestamp of the document."""
+    checksum: Optional[str]
+    """MD5 checksum for the file, if present (should be present in ESMA data but not FCA data)."""
 
     @staticmethod
     def from_dict(d: dict[str, Any]) -> 'FirdsDoc':
         return FirdsDoc(
-            d['checksum'],
-            d['download_link'],
-            d['id'],
-            d['file_name'],
-            d['file_type'],
-            d['timestamp']
+            download_link=d["download_link"],
+            file_id=d["id"],
+            file_name=d["file_name"],
+            file_type=d["file_type"],
+            timestamp=d["timestamp"],
+            checksum=d.get("checksum")
         )
 
     def download_zip(self, to_dir: str, overwrite: bool = False, verify: bool = True):
@@ -75,10 +75,13 @@ class FirdsDoc:
 
         if verify:
             logger.info(f'Verifying checksum of file at {fpath}.')
-            with open(fpath, 'rb') as fd:
-                check = file_digest(fd, 'md5').hexdigest()
-                if check != self.checksum:
-                    raise BadChecksumError(f'File {fpath} has checksum {check}, expected {self.checksum}.')
+            if self.checksum is None:
+                logger.warning("Cannot verify file as no checksum was provided.")
+            else:
+                with open(fpath, 'rb') as fd:
+                    check = file_digest(fd, 'md5').hexdigest()
+                    if check != self.checksum:
+                        raise BadChecksumError(f'File {fpath} has checksum {check}, expected {self.checksum}.')
 
         return fpath
 
@@ -108,10 +111,9 @@ class FirdsDoc:
 
         return os.path.join(to_dir, xml_fname)
 
+class EsmaFirdsSearcher:
 
-class FirdsSearcher:
-
-    def __init__(self, base_url: str = BASE_URL):
+    def __init__(self, base_url: str = ESMA_BASE_URL):
         self.base_url = base_url
         self.solr = Solr(base_url)
 
@@ -149,3 +151,7 @@ class FirdsSearcher:
             logger.info(f"Got results {start} to {start + rows} of {hits}. Query took {results.qtime}ms.")
             docs.extend(FirdsDoc.from_dict(d) for d in results.docs)
         return docs
+
+class FcaFirdsSearcher:
+    def __init__(self, base_url: str = FCA_BASE_URL):
+        self.base_url = base_url

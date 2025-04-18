@@ -5,7 +5,7 @@ import os
 from argparse import ArgumentParser
 from datetime import datetime, date
 
-from pyfirds.download import FirdsSearcher
+from pyfirds.download import EsmaFirdsSearcher
 
 
 def get_argparser() -> ArgumentParser:
@@ -21,6 +21,7 @@ def get_argparser() -> ArgumentParser:
                         "which can be used to refine the search.")
     a.add_argument("-t", "--to-dir", metavar="PATH", default=os.path.curdir,
                    help="Path to the directory to save the files to.")
+    a.add_argument("-o", "--overwrite", action="store_true", help="Overwrite files that are already on disk.")
     a.add_argument("from_date", metavar="DATE",
                    help="Date and time from which to search (inclusive), in YYYY-MM-DD format.")
     a.add_argument("to_date", metavar="DATE",
@@ -33,14 +34,23 @@ def search(argparser: ArgumentParser):
     if ns.debug:
         logging.basicConfig(level=logging.DEBUG)
     print(f"Searching for `{ns.query}` from {ns.from_date} to {ns.to_date}.")
-    s = FirdsSearcher()
+    s = EsmaFirdsSearcher()
     docs = s.search(from_date=date.fromisoformat(ns.from_date), to_date=date.fromisoformat(ns.to_date), query=ns.query)
     num_docs = len(docs)
     print(f"Found {num_docs} documents.")
+    if num_docs == 0:
+        return
+    if not os.path.exists(ns.to_dir):
+        print(f"{ns.to_dir} does not exist. Creating it.")
+        os.makedirs(ns.to_dir)
     for i, doc in enumerate(docs):
         print(f"Downloading {i + 1}/{num_docs}: {doc.file_name}")
         if ns.unzip:
-            doc.download_xml(ns.to_dir, delete_zip=not ns.keep_zip)
+            print(f"Unzipping {doc.file_name}.")
+            try:
+                doc.download_xml(ns.to_dir, overwrite=ns.overwrite, delete_zip=not ns.keep_zip)
+            except FileExistsError:
+                print(f"{doc.file_name} already exists in {ns.to_dir}. Skipping.")
         else:
             doc.download_zip(ns.to_dir)
 
