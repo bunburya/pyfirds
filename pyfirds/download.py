@@ -3,6 +3,7 @@ import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime, date
+from enum import StrEnum, auto
 from hashlib import file_digest
 from typing import Any, Optional
 from zipfile import ZipFile
@@ -16,6 +17,13 @@ FCA_BASE_URL = "https://api.data.fca.org.uk/fca_data_firds_files"
 
 logger = logging.getLogger(__name__)
 
+
+class FileType(StrEnum):
+    """The type of a FIRDS data file."""
+
+    FULINS = "FULINS"
+    DLTINS = "DLTINS"
+    FULCAN = "FULCAN"
 
 class BadChecksumError(Exception):
     """An error raised when a downloaded file does not have the expected checksum."""
@@ -39,15 +47,26 @@ class FirdsDoc:
     checksum: Optional[str]
     """MD5 checksum for the file, if present (should be present in ESMA data but not FCA data)."""
 
-    @staticmethod
-    def from_dict(d: dict[str, Any]) -> 'FirdsDoc':
-        return FirdsDoc(
+    @classmethod
+    def from_esma_dict(cls, d: dict[str, Any]) -> 'FirdsDoc':
+        return cls(
             download_link=d["download_link"],
             file_id=d["id"],
             file_name=d["file_name"],
             file_type=d["file_type"],
             timestamp=d["timestamp"],
             checksum=d.get("checksum")
+        )
+
+    @classmethod
+    def from_fca_dict(cls, d: dict[str, Any]) -> 'FirdsDoc':
+        return cls(
+            download_link=d["_source"]["download_link"],
+            file_id=d["_id"],
+            file_name=d["_source"]["file_name"],
+            file_type=d["_source"]["file_type"],
+            timestamp=datetime.fromisoformat(d["_source"]["last_refreshed"]),
+            checksum=None
         )
 
     def download_zip(self, to_dir: str, overwrite: bool = False, verify: bool = True):
@@ -111,24 +130,31 @@ class FirdsDoc:
 
         return os.path.join(to_dir, xml_fname)
 
-class EsmaFirdsSearcher:
+class BaseFirdsSearcher(abc.ABC):
 
-    def __init__(self, base_url: str = ESMA_BASE_URL):
-        self.base_url = base_url
-        self.solr = Solr(base_url)
-
-    def search(self, from_date: date, to_date: date, query: str = '*') -> list[FirdsDoc]:
+    @abc.abstractmethod
+    def search(self, from_date: date, to_date: date, file_type: Optional[FileType]) -> list[FirdsDoc]:
         """Search the FIRDS database and return a list of download URLs.
 
         :param from_date: The start of the period to search. Can be a :class:`datetime` object or a :class:`date`
             object. In the latter case, the search period will run from the start of that date.
         :param to_date: The end of the period to search. Can be a :class:`datetime` object or a :class:`date` object.
             In the latter case, the search period will run to the end of that date.
-        :param query: The query to search. Optional, but can be set to 'FULINS', 'DLTINS' or 'FULCAN' to search for full
+        :param file_type: The query to search. Optional, but can be `FULINS`, `DLTINS` or `FULCAN` to search for full
             FIRDS records, delta files or cancellation files, respectively.
         """
+        raise NotImplementedError
 
-        logger.debug(f'Searching FIRDS database for query {query} from {from_date} to {to_date}.')
+class EsmaFirdsSearcher(BaseFirdsSearcher):
+
+    def __init__(self, base_url: str = ESMA_BASE_URL):
+        self.base_url = base_url
+        self.solr = Solr(base_url)
+
+    def search(self, from_date: date, to_date: date, file_type: Optional[FileType]) -> list[FirdsDoc]:
+
+        query = file_type or "*"
+        logger.debug(f'Searching ESMA FIRDS database for query {query} from {from_date} to {to_date}.')
 
         start = 0
         rows = 100
@@ -143,15 +169,54 @@ class EsmaFirdsSearcher:
         pub_date_fq = f'publication_date:[{from_str} TO {to_str}]'
         results = self.solr.search(query, fq=pub_date_fq, start=start, rows=rows)
         hits = results.hits
-        logger.info(f"Found {hits} results. Query took {results.qtime}ms.")
-        docs = [FirdsDoc.from_dict(d) for d in results.docs]
+        logger.info(f"Found {hits} results. Got results {start} to {start + len(results.docs)}. Query took {results.qtime}ms.")
+        docs = [FirdsDoc.from_esma_dict(d) for d in results.docs]
         while hits > (start + rows):
             start += rows
             results = self.solr.search(query, fq=pub_date_fq, start=start, rows=rows)
-            logger.info(f"Got results {start} to {start + rows} of {hits}. Query took {results.qtime}ms.")
-            docs.extend(FirdsDoc.from_dict(d) for d in results.docs)
+            logger.info(f"Got results {start} to {start + len(results.docs)} of {hits}. Query took {results.qtime}ms.")
+            docs.extend(FirdsDoc.from_esma_dict(d) for d in results.docs)
         return docs
 
-class FcaFirdsSearcher:
+class FcaFirdsSearcher(BaseFirdsSearcher):
     def __init__(self, base_url: str = FCA_BASE_URL):
         self.base_url = base_url
+
+    @staticmethod
+    def _build_q(from_date: date, to_date: date, file_type: Optional[FileType] = None) -> str:
+        """Builds a general query to be used as the `q` parameter to the request.
+
+        :param from_date: The start date of the period to search.
+        :param to_date: The end date of the period to search.
+        :param file_type: The specific file type to search for (if not provided, all file types will be returned).
+        """
+        from_str = from_date.strftime("%Y-%m-%d")
+        to_str = to_date.strftime("%Y-%m-%d")
+        q = f"(publication_date:[{from_str}%20TO%20{to_str}])"
+        if file_type is not None:
+            q += f"%20AND%20(file_type:{file_type})"
+        return f"({q})"
+
+    def search(self, from_date: date, to_date: date, file_type: Optional[FileType] = None) -> list[FirdsDoc]:
+        start = 0
+        rows = 100
+        q = self._build_q(from_date, to_date, file_type)
+        results = requests.get(self.base_url, params={"q": q, "from": start, "size": rows})
+        results.raise_for_status()
+        j = results.json()
+        data = j["hits"]
+        hit_count = data["total"]
+        hits = data["hits"]
+        logger.info(f"Found {hit_count} results. Got results {start} to {start + len(hits)} Query took {j['took']}ms.")
+        docs = [FirdsDoc.from_fca_dict(d) for d in hits]
+        while hit_count > (start + rows):
+            start += rows
+            results = requests.get(self.base_url, params={"q": q, "from": start, "size": rows})
+            results.raise_for_status()
+            j = results.json()
+            data = j["hits"]
+            hits = data["hits"]
+            logger.info(f"Got results {start} to {start + len(hits)} of {hit_count}. Query took {j['took']}ms.")
+            docs.extend(FirdsDoc.from_fca_dict(d) for d in hits)
+        return docs
+

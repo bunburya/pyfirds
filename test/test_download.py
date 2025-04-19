@@ -1,11 +1,11 @@
 import os
 import logging
 import random
-from datetime import datetime
+from datetime import datetime, date
 
 from lxml import etree
 
-from pyfirds.download import EsmaFirdsSearcher, ESMA_BASE_URL
+from pyfirds.download import EsmaFirdsSearcher, FileType, FcaFirdsSearcher
 
 from test.common import get_test_run_dir
 
@@ -15,9 +15,10 @@ logging.basicConfig(level=logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 
-firds = EsmaFirdsSearcher(ESMA_BASE_URL)
+esma = EsmaFirdsSearcher()
+fca = FcaFirdsSearcher()
 
-search_params_to_checksums = {
+esma_search_params_to_checksums = {
     (
         datetime(2023, 3, 23),
         datetime(2023, 4, 2, 23, 59, 59),
@@ -366,19 +367,28 @@ search_params_to_checksums = {
     ): []
 }
 
-def test_01_search():
-    for from_time, to_time, q in search_params_to_checksums:
-        results = firds.search(from_time, to_time, q)
-        checks = search_params_to_checksums[(from_time, to_time, q)]
+fca_search_params_to_hits = {
+    (date(2024, 10, 15), date(2024, 12, 31), FileType.FULINS): 339
+}
+
+def test_01_search_esma():
+    for from_time, to_time, q in esma_search_params_to_checksums:
+        results = esma.search(from_time, to_time, q)
+        checks = esma_search_params_to_checksums[(from_time, to_time, q)]
         assert len(results) == len(checks)
         for r, c in zip(results, checks):
             assert r.checksum == c
             if q != '*':
                 assert r.file_type == q
 
-def test_02_download():
-    for from_time, to_time, q in search_params_to_checksums:
-        results = firds.search(from_time, to_time, q)
+def test_02_search_fca():
+    for from_date, to_date, ft in fca_search_params_to_hits:
+        results = fca.search(from_date, to_date, ft)
+        assert len(results) == fca_search_params_to_hits[(from_date, to_date, ft)]
+
+def test_03_download():
+    for from_time, to_time, q in esma_search_params_to_checksums:
+        results = esma.search(from_time, to_time, q)
         for r in random.choices(results, k=min(10, len(results))):
             xml_fpath = r.download_xml(RUN_DIR, overwrite=True, verify=True, delete_zip=True)
             logger.debug(f'Testing parsing of XML file {xml_fpath}.')
