@@ -131,10 +131,3 @@ def iterparse(
         count[localname] += 1
         yield obj
     return count
-
-
-def ref_data(file: str) -> list[etree.Element]:
-    tree = etree.parse(file)
-    root = tree.getroot()
-    nsmap = root.nsmap
-    return root.findall("biz_data:Pyld/document:Document/document:FinInstrmRptgRefDataRpt/document:RefData")
