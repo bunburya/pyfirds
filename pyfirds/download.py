@@ -12,6 +12,8 @@ import requests
 from dateutil import tz
 from pysolr import Solr
 
+from pyfirds._firds_dl import firds_dl
+
 ESMA_BASE_URL = "https://registers.esma.europa.eu/solr/esma_registers_firds_files/"
 FCA_BASE_URL = "https://api.data.fca.org.uk/fca_data_firds_files"
 

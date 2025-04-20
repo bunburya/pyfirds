@@ -59,8 +59,5 @@ def search(argparser: ArgumentParser):
         except FileExistsError as e:
             print(f"{e.args[0]} already exists. Skipping.")
 
-def main():
+def firds_dl():
     search(get_argparser())
-
-if __name__ == "__main__":
-    main()

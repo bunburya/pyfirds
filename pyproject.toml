@@ -27,4 +27,4 @@ Documentation = "https://bunburya.github.io/pyfirds/"
 Repository = "https://github.com/bunburya/pyfirds"
 
 [project.scripts]
-firds-dl = "_firds_dl:main"
+firds-dl = "download:firds_dl"
