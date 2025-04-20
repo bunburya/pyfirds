@@ -9,3 +9,5 @@ The `firds-dl.py` script in the `scripts/` directory allows you to easily downlo
 
 The `iterparse` function in the `xml_utils` module parses a FIRDS XML file and yields instances of the relevant dataclasses describing the data.
 Elements are deleted once they are processed to preserve memory (the files are quite large so loading the entire tree into memory at once can take a lot of RAM).
+
+For more information see the [documentation](https://bunburya.github.io/pyfirds/).
