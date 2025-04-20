@@ -52,7 +52,7 @@ class StrikePrice(XmlParsed):
         """Parse a `DerivInstrmAttrbts/StrkPric` XML element from FIRDS into a :class:`StrikePrice` object.
 
         :param elem: The XML element to parse. The tag should be
-            `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}StrkPric`or equivalent.
+            `{urn:iso:std:iso:20022:tech:xsd:auth.017.001.02}StrkPric` or equivalent.
         """
         nsmap = elem.nsmap
         price_xml = elem.find("Pric", nsmap)

@@ -114,6 +114,7 @@ def iterparse(
     :param tag_localname_to_cls: A dict mapping each XML tag name (after the namespace bit) to the class to be generated
         from it (which should be a subclass of :class:`BaseXmlParsed` or otherwise have an appropriate `from_xml` class
         method).
+
     :return: A dict specifying the number of XML elements of each given tag encountered.
     """
 
