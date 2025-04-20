@@ -5,16 +5,14 @@ name = "pypi"
 
 [packages]
 pysolr = "*"
-pytest = "*"
 lxml = "*"
 types-lxml = "*"
-sqlalchemy = "*"
-sphinx = "*"
-myst-parser = "*"
-pluggy = "*"
 requests = "*"
 python-dateutil = "*"
 
 [dev-packages]
+pytest = "*"
+sphinx = "*"
+myst-parser = "*"
 
 [requires]

@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyfirds"
+version = "0.0.1"
+dependencies = [
+    "pysolr >= 3.10.0",
+    "python-dateutil >= 2.9.0.post0",
+    "lxml >= 5.3.0",
+    "requests >= 2.32.3",
+    "types-lxml >= 2024.12.13"
+]
+requires-python = ">= 3.11"
+authors = [
+    {name = "bunburya", email="dev@bunburya.eu"}
+]
+description = "Library for working with ESMA/FCA FIRDS data."
+readme="README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["esma", "fca", "firds", "finance"]
+
+[project.urls]
+Documentation = "https://bunburya.github.io/pyfirds/"
+Repository = "https://github.com/bunburya/pyfirds"
+
+[project.scripts]
+firds-dl = "_firds_dl:main"

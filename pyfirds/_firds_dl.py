@@ -1,11 +1,9 @@
-#!/usr/bin/env python
-
 import logging
 import os
 from argparse import ArgumentParser
 from datetime import date
 
-from pyfirds.download import EsmaFirdsSearcher, FcaFirdsSearcher
+from pyfirds.download import FcaFirdsSearcher, EsmaFirdsSearcher
 
 
 def get_argparser() -> ArgumentParser:
@@ -61,5 +59,8 @@ def search(argparser: ArgumentParser):
         except FileExistsError as e:
             print(f"{e.args[0]} already exists. Skipping.")
 
-if __name__ == "__main__":
+def main():
     search(get_argparser())
+
+if __name__ == "__main__":
+    main()
