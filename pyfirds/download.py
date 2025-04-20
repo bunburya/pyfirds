@@ -3,7 +3,7 @@ import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime, date
-from enum import StrEnum, auto
+from enum import StrEnum
 from hashlib import file_digest
 from typing import Any, Optional
 from zipfile import ZipFile
@@ -79,7 +79,7 @@ class FirdsDoc:
         """
 
         fpath = os.path.join(to_dir, self.file_name)
-        if os.path.exists(fpath) and not overwrite:
+        if (not overwrite) and os.path.exists(fpath):
             raise FileExistsError(fpath)
 
         fpath_part = f'{fpath}.part'
@@ -119,7 +119,7 @@ class FirdsDoc:
             zip_file = ZipFile(fd)
             xml_fname = zip_file.namelist()[0]
             xml_fpath = os.path.join(to_dir, xml_fname)
-            if os.path.exists(xml_fpath) and not overwrite:
+            if (not overwrite) and os.path.exists(xml_fpath):
                 raise FileExistsError(xml_fpath)
             logger.debug(f'Extracting {zip_fpath} to {xml_fpath}.')
             zip_file.extractall(to_dir)

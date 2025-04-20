@@ -3,7 +3,7 @@ from time import time
 
 from pyfirds.model import ReferenceData, NewRecord, ModifiedRecord, TerminatedRecord
 from pyfirds.xml_utils import iterparse
-from test.common import FIRDS_FILES, FIRDS_DIR, verify_types
+from test.common import ESMA_FIRDS_FILES, FIRDS_DIR, verify_types
 
 tags = {
     "RefData": ReferenceData,
@@ -13,7 +13,7 @@ tags = {
 }
 
 if __name__ == "__main__":
-    for f in FIRDS_FILES:
+    for f in ESMA_FIRDS_FILES:
         print(f)
         count = {}
         t1 = time()

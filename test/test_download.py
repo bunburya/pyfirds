@@ -386,7 +386,7 @@ def test_02_search_fca():
         results = fca.search(from_date, to_date, ft)
         assert len(results) == fca_search_params_to_hits[(from_date, to_date, ft)]
 
-def test_03_download():
+def test_03_download_esma():
     for from_time, to_time, q in esma_search_params_to_checksums:
         results = esma.search(from_time, to_time, q)
         for r in random.choices(results, k=min(10, len(results))):
@@ -395,6 +395,12 @@ def test_03_download():
             etree.parse(xml_fpath)
             os.remove(xml_fpath)
 
-
-
+def test_04_download_fca():
+    for from_time, to_time, ft in fca_search_params_to_hits:
+        results = fca.search(from_time, to_time, ft)
+        for r in random.choices(results, k=min(10, len(results))):
+            xml_fpath = r.download_xml(RUN_DIR, overwrite=True, verify=False, delete_zip=True)
+            logger.debug(f'Testing parsing of XML file {xml_fpath}.')
+            etree.parse(xml_fpath)
+            os.remove(xml_fpath)
 

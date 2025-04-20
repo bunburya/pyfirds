@@ -3,9 +3,9 @@
 import logging
 import os
 from argparse import ArgumentParser
-from datetime import datetime, date
+from datetime import date
 
-from pyfirds.download import EsmaFirdsSearcher
+from pyfirds.download import EsmaFirdsSearcher, FcaFirdsSearcher
 
 
 def get_argparser() -> ArgumentParser:
@@ -16,43 +16,50 @@ def get_argparser() -> ArgumentParser:
     a.add_argument("-k", "--keep-zip", action="store_true", help="Keep zip files after unzipping. "
                                                                  "Only relevant if --unzip has been passed.")
     a.add_argument("-d", "--debug", action="store_true", help="More verbose logging.")
-    a.add_argument("-q", "--query", metavar="QUERY_STRING", default="*",
-                   help="A query string, compatible with Solr or Elasticsearch (as appropriate), "
-                        "which can be used to refine the search.")
-    a.add_argument("-t", "--to-dir", metavar="PATH", default=os.path.curdir,
-                   help="Path to the directory to save the files to.")
+    a.add_argument("-t", "--file-type", choices=['fulins', 'dltins', 'fulcan'], help="The type of FIRDS file to download.")
     a.add_argument("-o", "--overwrite", action="store_true", help="Overwrite files that are already on disk.")
+    a.add_argument("-s", "--source", choices=["esma", "fca"], default="esma",
+                   help="Source to download data from (ESMA or FCA).")
     a.add_argument("from_date", metavar="DATE",
                    help="Date and time from which to search (inclusive), in YYYY-MM-DD format.")
     a.add_argument("to_date", metavar="DATE",
                    help="Date and time to which to search (inclusive), in YYYY-MM-DD format.")
+    a.add_argument("dest", metavar="DIR", default=os.path.curdir,
+                   help="Directory to save the files to. Will be created if it does not exist.")
     return a
 
 
 def search(argparser: ArgumentParser):
     ns = argparser.parse_args()
+    file_type = ns.file_type.upper() if ns.file_type else None
     if ns.debug:
         logging.basicConfig(level=logging.DEBUG)
-    print(f"Searching for `{ns.query}` from {ns.from_date} to {ns.to_date}.")
-    s = EsmaFirdsSearcher()
-    docs = s.search(from_date=date.fromisoformat(ns.from_date), to_date=date.fromisoformat(ns.to_date), query=ns.query)
+    print(f"Searching for files of type `{file_type or 'any'}` from {ns.from_date} to {ns.to_date}.")
+    s = EsmaFirdsSearcher() if ns.source.lower() == "esma" else FcaFirdsSearcher()
+    docs = s.search(from_date=date.fromisoformat(ns.from_date), to_date=date.fromisoformat(ns.to_date), file_type=file_type)
     num_docs = len(docs)
     print(f"Found {num_docs} documents.")
     if num_docs == 0:
         return
-    if not os.path.exists(ns.to_dir):
-        print(f"{ns.to_dir} does not exist. Creating it.")
-        os.makedirs(ns.to_dir)
+    if not os.path.exists(ns.dest):
+        print(f"{ns.dest} does not exist. Creating it.")
+        os.makedirs(ns.dest)
     for i, doc in enumerate(docs):
         print(f"Downloading {i + 1}/{num_docs}: {doc.file_name}")
-        if ns.unzip:
-            print(f"Unzipping {doc.file_name}.")
-            try:
-                doc.download_xml(ns.to_dir, overwrite=ns.overwrite, delete_zip=not ns.keep_zip)
-            except FileExistsError:
-                print(f"{doc.file_name} already exists in {ns.to_dir}. Skipping.")
-        else:
-            doc.download_zip(ns.to_dir)
+        zip_path = os.path.join(ns.dest, doc.file_name)
+        unzip_path = zip_path[:-4] + ".xml"
+        if (not ns.overwrite) and os.path.exists(unzip_path):
+            # If unzipped file already exists and we're not overwriting it, don't even try to download the zip
+            print(f"{unzip_path} already exists. Skipping.")
+            continue
+        try:
+            if ns.unzip:
+                print(f"Unzipping {doc.file_name}.")
+                doc.download_xml(ns.dest, overwrite=ns.overwrite, delete_zip=not ns.keep_zip)
+            else:
+                doc.download_zip(ns.dest, overwrite=ns.overwrite)
+        except FileExistsError as e:
+            print(f"{e.args[0]} already exists. Skipping.")
 
 if __name__ == "__main__":
     search(get_argparser())

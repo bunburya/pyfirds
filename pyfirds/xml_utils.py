@@ -93,7 +93,7 @@ def parse_date(elem: Optional[etree.Element], optional: bool = False) -> Optiona
             return None
         else:
             raise ValueError(f"Received NoneType when parsing non-optional element.")
-    value = elem.text
+    value = elem.text.rstrip("Z")  # FCA data includes a Z at the end
     return date.fromisoformat(value)
 
 

@@ -1,9 +1,8 @@
 from dataclasses import dataclass
 from datetime import datetime, date
-from typing import Optional, Union, TYPE_CHECKING
+from typing import Optional, Union
 
 from lxml import etree
-from sqlalchemy import Row
 
 from pyfirds.categories import DebtSeniority, OptionType, OptionExerciseStyle, DeliveryType, BaseProduct, SubProduct, \
     FurtherSubProduct, IndexTermUnit, TransactionType, FinalPriceType, FxType, IndexName, StrikePriceType
@@ -232,12 +231,12 @@ class PublicationPeriod(XmlParsed):
         from_to = elem.find("FrDtToDt", nsmap)
         if from_to is not None:
             return PublicationPeriod(
-                from_date=parse_datetime(from_to.find("FrDt", nsmap)),
-                to_date=parse_datetime(from_to.find("ToDt", nsmap), optional=True)
+                from_date=parse_date(from_to.find("FrDt", nsmap)),
+                to_date=parse_date(from_to.find("ToDt", nsmap), optional=True)
             )
         else:
             return PublicationPeriod(
-                from_date=parse_datetime(elem.find("FrDt", nsmap)),
+                from_date=parse_date(elem.find("FrDt", nsmap)),
                 to_date=None
             )
 
@@ -248,14 +247,14 @@ class TechnicalAttributes(XmlParsed):
     financial instrument to FIRDS).
     """
 
-    relevant_competent_authority: str
+    relevant_competent_authority: Optional[str]
     """The relevant competent authority for the instrument."""
     # publication_period does not appear in TermntdRcrd, so is optional. But should appear in ReferenceData classes.
     publication_period: Optional[PublicationPeriod]
     """The period for which these details on the financial instrument was published.
     NOTE: `publication_period` is optional as it does not appear in :class:`TerminatedRecord` classes, but it should
     always appear in :class:`ReferenceData` classes."""
-    relevant_trading_venue: str
+    relevant_trading_venue: Optional[str]
     """The MIC of the trading venue that reported the record considered as the reference for the published data."""
 
     @classmethod
@@ -267,9 +266,9 @@ class TechnicalAttributes(XmlParsed):
         """
         nsmap = elem.nsmap
         return TechnicalAttributes(
-            relevant_competent_authority=elem.find("RlvntCmptntAuthrty", nsmap).text,
+            relevant_competent_authority=text_or_none(elem.find("RlvntCmptntAuthrty", nsmap)),
             publication_period=optional(elem.find("PblctnPrd", nsmap), PublicationPeriod),
-            relevant_trading_venue=elem.find("RlvntTradgVn", nsmap).text
+            relevant_trading_venue=text_or_none(elem.find("RlvntTradgVn", nsmap))
         )
 
 
@@ -517,7 +516,7 @@ class DerivativeAttributes(XmlParsed):
     scheme (CFI code C) instruments.
     """
 
-    expiry_date: Optional[datetime]
+    expiry_date: Optional[date]
     """Expiry date of the instrument."""
     price_multiplier: Optional[float]
     """Number of units of the underlying instrument represented by a single derivative contract. For a future or option
@@ -552,7 +551,7 @@ class DerivativeAttributes(XmlParsed):
         # TODO: Continue refactor
         nsmap = elem.nsmap
         return DerivativeAttributes(
-            expiry_date=parse_datetime(elem.find("XpryDt", nsmap), optional=True),
+            expiry_date=parse_date(elem.find("XpryDt", nsmap), optional=True),
             price_multiplier=text_or_none(elem.find("PricMltplr", nsmap), wrapper=float),
             # Will probably need single "Underlying" class
             underlying=optional(elem.find("UndrlygInstrm", nsmap), DerivativeUnderlying),

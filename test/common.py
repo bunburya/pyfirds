@@ -1,7 +1,6 @@
 import logging
 import os
 from dataclasses import fields
-from datetime import datetime, date
 from typing import Any, Type
 
 logger = logging.getLogger(__name__)
@@ -11,11 +10,22 @@ TEST_RUN_BASE_DIR = os.path.join(TEST_DATA_DIR, "run")
 TEST_FIRDS_DATA_DIR = os.path.join(TEST_DATA_DIR, "firds_data")
 
 FIRDS_DIR = os.path.join(TEST_DATA_DIR, "firds_data")
+ESMA_FIRDS_DIR = os.path.join(FIRDS_DIR, "esma")
+FCA_FIRDS_DIR = os.path.join(FIRDS_DIR, "fca")
+
 try:
-    FIRDS_FILES = os.listdir(FIRDS_DIR)
+    ESMA_FIRDS_FILES = os.listdir(ESMA_FIRDS_DIR)
 except FileNotFoundError as e:
-    logger.critical(f"Could not file FIRDS file directory ({FIRDS_DIR}). This directory should be present and should "
-                    f"contain FIRDS files downloaded from ESMA website to test against.")
+    logger.critical(f"Could not file ESMA FIRDS file directory ({ESMA_FIRDS_DIR}). This directory should be present and "
+                    "should contain FIRDS files downloaded from ESMA website to test against.")
+    logger.exception(e)
+    raise e
+
+try:
+    FCA_FIRDS_FILES = os.listdir(FCA_FIRDS_DIR)
+except FileNotFoundError as e:
+    logger.critical(f"Could not file FCA FIRDS file directory ({FCA_FIRDS_DIR}). This directory should be present and "
+                    "should contain FIRDS files downloaded from FCA website to test against.")
     logger.exception(e)
     raise e
 
@@ -44,22 +54,3 @@ def verify_types(val: Any, type_: Type, name: str):
             verify_types(getattr(val, f.name), f.type, f"{name}.{f.name}")
     except TypeError:
         pass
-
-
-def get_fulins(inst_type: str = None, file_date: date = None) -> list[str]:
-    """Return FIRDS FULINS data files confirming to the specified criteria.
-
-    :param inst_type: The type of financial instrument, as the first letter of the CFI code.
-    :param file_date: Only return files from this date.
-    :return: A list of file paths for the relevant data files.
-    """
-
-    def test(fname: str) -> bool:
-        _, cfi_part, date_part, _ = fname.split("_")
-        if inst_type and (cfi_part != inst_type):
-            return False
-        if file_date and (file_date.strftime("%Y%m%d") != date_part):
-            return False
-        return True
-
-    return list(filter(test, filter(lambda s: s.startswith("FULINS"), FIRDS_FILES)))
